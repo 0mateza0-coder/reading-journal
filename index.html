@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>สมุดบันทึกการอ่าน</title>
+  <meta name="description" content="บันทึกและสรุปการอ่าน พร้อมรอบทบทวน 1, 3, 7, 30 วัน">
+  <meta name="theme-color" content="#2f6b5e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#141a19" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="บันทึกการอ่าน">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="top">
+    <h1 id="viewTitle">สมุดบันทึกการอ่าน</h1>
+    <p class="sync" id="syncState" role="status"></p>
+  </header>
+
+  <main>
+    <!-- ล็อกอิน -->
+    <section id="view-login" class="view" hidden>
+      <div class="card stack" id="authCard">
+        <h2 id="authTitle">เข้าสู่ระบบ</h2>
+        <p class="note" id="authIntro">บันทึกจะเก็บไว้ในบัญชีของคุณ เปิดได้จากทุกเครื่อง</p>
+        <form id="authForm" class="stack" novalidate>
+          <label>อีเมล<input type="email" id="authEmail" autocomplete="email" inputmode="email" required></label>
+          <label id="pwLabel">รหัสผ่าน <small>อย่างน้อย 6 ตัวอักษร</small>
+            <input type="password" id="authPassword" autocomplete="current-password" minlength="6" required></label>
+          <button class="primary" type="submit" id="authSubmit">เข้าสู่ระบบ</button>
+        </form>
+        <p class="msg" id="authMsg" role="status"></p>
+        <div class="links">
+          <button type="button" class="link" id="toggleMode">ยังไม่มีบัญชี? สมัครสมาชิก</button>
+          <button type="button" class="link" id="forgotBtn">ลืมรหัสผ่าน</button>
+        </div>
+        <hr>
+        <button type="button" id="guestBtn">ใช้งานโดยไม่ล็อกอิน</button>
+        <p class="note">ถ้าไม่ล็อกอิน บันทึกจะเก็บในเครื่องนี้เท่านั้น ล็อกอินทีหลังแล้วย้ายเข้าบัญชีได้</p>
+      </div>
+
+      <form id="recoveryForm" class="card stack" hidden novalidate>
+        <h2>ตั้งรหัสผ่านใหม่</h2>
+        <label>รหัสผ่านใหม่ <small>อย่างน้อย 6 ตัวอักษร</small>
+          <input type="password" id="newPassword" autocomplete="new-password" minlength="6" required></label>
+        <button class="primary" type="submit">บันทึกรหัสผ่านใหม่</button>
+        <p class="msg" id="recoveryMsg" role="status"></p>
+      </form>
+    </section>
+
+    <!-- หน้าแรก -->
+    <section id="view-home" class="view" hidden>
+      <p class="today" id="todayLabel"></p>
+      <div class="card stack migrate" id="migrateCard" hidden>
+        <h2>ย้ายบันทึกเข้าบัญชี</h2>
+        <p class="note" id="migrateText"></p>
+        <div class="actions">
+          <button class="primary" id="migrateBtn">ย้ายเข้าบัญชี</button>
+          <button id="migrateSkip">ไว้ทีหลัง</button>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="sStreak">0</b><span>วันติดต่อกัน</span></div>
+        <div class="stat"><b id="sPages">0</b><span>หน้าทั้งหมด</span></div>
+        <div class="stat"><b id="sMin">0</b><span>นาทีทั้งหมด</span></div>
+      </div>
+
+      <div class="card goal-today" id="goalToday">
+        <div class="goal-row">
+          <p id="goalTodayText"></p>
+          <span class="chip" id="goalTodayChip" hidden>✓ ครบเป้าแล้ว</span>
+        </div>
+        <div class="bar" role="progressbar" aria-label="ความคืบหน้าเป้าหมายวันนี้" aria-valuemin="0" aria-valuemax="100" id="goalBar"><span id="goalBarFill"></span></div>
+      </div>
+
+      <div class="due-box" id="dueBox">
+        <h2>ทบทวนวันนี้</h2>
+        <div id="dueList" class="list"></div>
+      </div>
+
+      <div class="home-actions">
+        <button class="primary big" id="homeTimer">⏱ เริ่มจับเวลาอ่าน</button>
+        <button class="big" data-go="write">+ เขียนบันทึก</button>
+      </div>
+
+      <div class="list">
+        <h2>ล่าสุด</h2>
+        <div id="recent" class="list"></div>
+      </div>
+    </section>
+
+    <!-- เขียนบันทึก -->
+    <section id="view-write" class="view" hidden>
+      <div class="card timer" id="timerCard">
+        <div class="timer-row">
+          <span class="timer-time" id="timerTime" role="timer" aria-live="off">00:00</span>
+          <span class="note" id="timerState">จับเวลาตอนอ่าน แล้วแอปจะใส่นาทีให้เอง</span>
+        </div>
+        <div class="actions">
+          <button type="button" class="primary" id="timerStart">เริ่มจับเวลา</button>
+          <button type="button" id="timerPause" hidden>หยุดชั่วคราว</button>
+          <button type="button" id="timerFinish" hidden>จบการอ่าน · ใส่เวลา</button>
+          <button type="button" id="timerReset" hidden>ล้างเวลา</button>
+        </div>
+      </div>
+      <form id="f" autocomplete="off">
+        <fieldset>
+          <legend>ก่อนอ่าน</legend>
+          <div class="row">
+            <label>วันที่<input type="date" id="date" required></label>
+            <label>ชื่อหนังสือ<input id="book" required list="bookList" placeholder="เช่น Atomic Habits"></label>
+          </div>
+          <datalist id="bookList"></datalist>
+          <div class="row">
+            <label>บท / หัวข้อ<input id="chapter" placeholder="บทที่ 3"></label>
+            <label>หน้า (จาก)<input type="number" id="pFrom" min="0" inputmode="numeric"></label>
+            <label>หน้า (ถึง)<input type="number" id="pTo" min="0" inputmode="numeric"></label>
+            <label>เวลา (นาที)<input type="number" id="minutes" min="0" inputmode="numeric"></label>
+          </div>
+          <label>คำถามที่อยากได้คำตอบจากการอ่านครั้งนี้<input id="goal" placeholder="บทนี้จะอธิบายเรื่องอะไร"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>หลังอ่าน · ปิดหนังสือก่อนเขียน</legend>
+          <label>ประเด็นสำคัญ 3 ข้อ <small>เขียนจากความจำ ไม่เปิดหนังสือดู</small></label>
+          <div class="points">
+            <div><input id="k1" aria-label="ประเด็นที่ 1"></div>
+            <div><input id="k2" aria-label="ประเด็นที่ 2"></div>
+            <div><input id="k3" aria-label="ประเด็นที่ 3"></div>
+          </div>
+          <label>สรุปด้วยคำพูดของตัวเอง <small>อธิบายให้เด็กเข้าใจได้</small><textarea id="summary"></textarea></label>
+          <label>ยังไม่เข้าใจ / สงสัยตรงไหน<textarea id="questions" rows="2"></textarea></label>
+          <label>จะนำไปใช้หรือเชื่อมกับสิ่งที่รู้อย่างไร<textarea id="apply" rows="2"></textarea></label>
+          <label>คำคมหรือประโยคที่ชอบ<input id="quote"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>ประเมินตัวเอง</legend>
+          <div class="scale" role="radiogroup" aria-label="ระดับความเข้าใจ" id="scale">
+            <span class="note">ความเข้าใจ</span>
+          </div>
+          <label class="check"><input type="checkbox" id="recall"> ปิดหนังสือแล้วทวนออกมาได้</label>
+        </fieldset>
+
+        <div class="actions">
+          <button class="primary" type="submit" id="saveBtn">บันทึก</button>
+          <button type="button" id="cancelBtn" hidden>ยกเลิกการแก้ไข</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- คลัง -->
+    <section id="view-library" class="view" hidden>
+      <div class="row filters">
+        <label>ค้นหา<input type="search" id="q" placeholder="คำในบันทึก"></label>
+        <label>หนังสือ<select id="bookFilter"><option value="">ทั้งหมด</option></select></label>
+      </div>
+      <p class="note" id="libCount"></p>
+      <div id="entries" class="list"></div>
+    </section>
+
+    <!-- ปฏิทิน -->
+    <section id="view-calendar" class="view" hidden>
+      <div class="cal-head">
+        <button id="calPrev" aria-label="เดือนก่อนหน้า">‹</button>
+        <h2 id="calTitle" aria-live="polite"></h2>
+        <button id="calNext" aria-label="เดือนถัดไป">›</button>
+      </div>
+      <div class="card goal-card">
+        <div class="goal-row">
+          <p id="goalText"></p>
+          <button class="small" id="goalEdit">ตั้งเป้าหมาย</button>
+        </div>
+        <form id="goalForm" class="stack" hidden novalidate>
+          <label>อ่านวันละกี่นาที
+            <input type="number" id="goalMinutes" min="1" max="600" inputmode="numeric" required></label>
+          <fieldset class="days">
+            <legend>วันที่ตั้งใจอ่าน</legend>
+            <div class="day-chips" id="goalDays"></div>
+          </fieldset>
+          <p class="msg error" id="goalMsg" role="status"></p>
+          <div class="actions">
+            <button class="primary" type="submit">บันทึกเป้าหมาย</button>
+            <button type="button" id="goalCancel">ยกเลิก</button>
+          </div>
+        </form>
+      </div>
+      <div class="stats four" id="calSum">
+        <div class="stat"><b id="cGoal">0</b><span>วันที่ครบเป้า</span></div>
+        <div class="stat"><b id="cDays">0</b><span>วันที่อ่าน</span></div>
+        <div class="stat"><b id="cPages">0</b><span>หน้า</span></div>
+        <div class="stat"><b id="cMin">0</b><span>นาที</span></div>
+      </div>
+      <div class="card cal">
+        <div class="cal-week" aria-hidden="true"><span>อา</span><span>จ</span><span>อ</span><span>พ</span><span>พฤ</span><span>ศ</span><span>ส</span></div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-legend">
+          <span>น้อย</span><i class="lv1"></i><i class="lv2"></i><i class="lv3"></i><i class="lv4"></i><span>มาก</span>
+          <span class="sep"></span><b class="tick">✓</b><span>ครบเป้า</span>
+          <span class="sep"></span><i class="dot"></i><span>นัดทบทวน</span>
+        </div>
+      </div>
+      <button id="calToday" class="small">กลับไปเดือนนี้</button>
+      <div class="list" id="calDay"></div>
+    </section>
+
+    <!-- ทบทวน -->
+    <section id="view-review" class="view" hidden>
+      <div class="review card">
+        <p class="meta" id="rvMeta"></p>
+        <h2 id="rvBook"></h2>
+        <p id="rvGoal" class="goal"></p>
+        <label>ลองนึกประเด็นสำคัญก่อนเปิดดู <small>ไม่ต้องบันทึก แค่เขียนเพื่อทวน</small>
+          <textarea id="rvAttempt" rows="4"></textarea>
+        </label>
+        <button class="primary" id="rvReveal">เปิดดูสรุป</button>
+        <div id="rvAnswer" hidden></div>
+        <div id="rvGrade" class="grade" hidden>
+          <p class="note">นึกออกได้แค่ไหน</p>
+          <div class="actions">
+            <button data-grade="forgot">ลืมเกือบหมด</button>
+            <button data-grade="ok">พอนึกออก</button>
+            <button class="primary" data-grade="good">จำได้ดี</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ตั้งค่า -->
+    <section id="view-settings" class="view" hidden>
+      <div class="card stack" id="accountCard" hidden>
+        <h2>บัญชี</h2>
+        <p class="note" id="accountText"></p>
+        <div class="actions">
+          <button id="signInBtn" hidden>เข้าสู่ระบบ / สมัครสมาชิก</button>
+          <button id="signOutBtn" hidden>ออกจากระบบ</button>
+        </div>
+        <p class="note" id="accountMsg" role="status"></p>
+      </div>
+      <div class="card stack">
+        <h2>แจ้งเตือน</h2>
+        <p class="note">แอปจะแจ้งเตือนและแสดงตัวเลขบนไอคอนเมื่อมีเรื่องถึงรอบทบทวน ตอนที่เปิดแอป</p>
+        <button id="notifBtn">เปิดการแจ้งเตือน</button>
+        <p class="note" id="notifState"></p>
+      </div>
+      <div class="card stack">
+        <h2>สำรองข้อมูล</h2>
+        <p class="note" id="backupNote">บันทึกทั้งหมดเก็บอยู่ในเครื่องนี้ ควรส่งออกไฟล์สำรองไว้เป็นระยะ</p>
+        <div class="actions">
+          <button id="exportBtn">ส่งออกไฟล์สำรอง</button>
+          <label class="filebtn">นำเข้าไฟล์สำรอง<input type="file" id="importFile" accept="application/json,.json"></label>
+        </div>
+        <p class="note" id="backupMsg" role="status"></p>
+        <p class="note" id="persistState"></p>
+      </div>
+      <div class="card stack" id="installCard">
+        <h2>ติดตั้งลงหน้าจอโฮม</h2>
+        <p class="note" id="installHint">iPhone / iPad: เปิดใน Safari แล้วกดปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”<br>Android / คอมพิวเตอร์: กดปุ่มด้านล่าง หรือเลือก “ติดตั้งแอป” จากเมนูของเบราว์เซอร์</p>
+        <button id="installBtn" hidden>ติดตั้งแอป</button>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+  <button class="timer-mini" id="timerMini" data-go="write" hidden>⏱ <span id="timerMiniTime">00:00</span> · กำลังอ่าน แตะเพื่อกลับไปบันทึก</button>
+
+  <nav class="tabs" aria-label="เมนูหลัก">
+    <button data-go="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>หน้าแรก</button>
+    <button data-go="write"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19h14M7 15l9-9 3 3-9 9H7z"/></svg>บันทึก</button>
+    <button data-go="calendar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>ปฏิทิน</button>
+    <button data-go="library"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 5l3.5-1 3 15-3.5 1z"/></svg>คลัง</button>
+    <button data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>ตั้งค่า</button>
+  </nav>
+
+  <script src="config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
