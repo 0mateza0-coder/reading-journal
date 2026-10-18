@@ -43,6 +43,9 @@ h2 { font-family: var(--display); font-size: 1.12rem; margin: 0; }
 .stat { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .stat b { display: block; font-family: var(--display); font-size: 1.5rem; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.2; }
 .stat span { font-size: .78rem; color: var(--muted); }
+.stat span small { display: block; font-size: .7rem; }
+.backup-nudge { background: var(--due-soft); border-color: transparent; }
+.backup-nudge h2 { color: var(--due); }
 
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
 .stack { display: grid; gap: 10px; }

@@ -1,9 +1,12 @@
 // เปลี่ยนเลขเวอร์ชันทุกครั้งที่แก้ไฟล์แอป เพื่อให้เครื่องที่ติดตั้งไว้โหลดของใหม่
-const CACHE = "reading-journal-v6";
+const CACHE = "reading-journal-v7";
 const SHELL = ["./", "index.html", "app.css", "config.js", "app.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: "reload" = ดึงไฟล์ใหม่จากเซิร์ฟเวอร์เสมอ ไม่ใช้ไฟล์เก่าในแคชของเบราว์เซอร์
+  e.waitUntil(caches.open(CACHE)
+    .then(c => c.addAll(SHELL.map(u => new Request(u, { cache: "reload" }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", e => {

@@ -65,8 +65,16 @@
           <button id="migrateSkip">ไว้ทีหลัง</button>
         </div>
       </div>
+      <div class="card stack backup-nudge" id="backupNudge" hidden>
+        <h2>สำรองข้อมูลกันหาย</h2>
+        <p class="note" id="backupNudgeText"></p>
+        <div class="actions">
+          <button class="primary" id="backupNudgeBtn">ส่งออกไฟล์สำรอง</button>
+          <button id="backupNudgeLater">ไว้ทีหลัง</button>
+        </div>
+      </div>
       <div class="stats">
-        <div class="stat"><b id="sStreak">0</b><span>วันติดต่อกัน</span></div>
+        <div class="stat"><b id="sStreak">0</b><span>ครบเป้าติดกัน (วัน)<small id="sBest"></small></span></div>
         <div class="stat"><b id="sPages">0</b><span>หน้าทั้งหมด</span></div>
         <div class="stat"><b id="sMin">0</b><span>นาทีทั้งหมด</span></div>
       </div>

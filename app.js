@@ -336,11 +336,9 @@ function card(e, withActions = true) {
 function renderStats() {
   const pages = entries.reduce((s, e) => s + (e.pTo != null && e.pFrom != null && e.pTo >= e.pFrom ? e.pTo - e.pFrom + 1 : 0), 0);
   const mins = entries.reduce((s, e) => s + (+e.minutes || 0), 0);
-  const days = new Set(entries.map(e => e.date));
-  let streak = 0, d = todayStr();
-  if (!days.has(d)) d = addDays(d, -1);
-  while (days.has(d)) { streak++; d = addDays(d, -1); }
+  const { current: streak, best } = goalStreaks();
   $("sStreak").textContent = streak;
+  $("sBest").textContent = best ? `สูงสุด ${best} วัน` : "";
   $("sPages").textContent = pages.toLocaleString("th-TH");
   $("sMin").textContent = mins.toLocaleString("th-TH");
 }
@@ -393,6 +391,22 @@ function describeGoal(g) {
     : [1, 2, 3, 4, 5].every(d => g.days.includes(d)) && g.days.length === 5 ? "วันจันทร์–ศุกร์"
     : g.days.slice().sort().map(d => DAY_NAMES[d]).join(" ");
   return `เป้าหมาย: อ่านวันละ ${g.minutes} นาที · ${days}`;
+}
+
+// นับวันที่ครบเป้าติดกัน: ข้ามวันพัก (วันที่ไม่ได้ตั้งใจอ่าน) และไม่ตัดสถิติเพราะวันนี้ที่ยังไม่จบวัน
+function goalStreaks() {
+  const g = getGoal();
+  const mins = {};
+  for (const e of entries) mins[e.date] = (mins[e.date] || 0) + (+e.minutes || 0);
+  const dates = Object.keys(mins).sort();
+  const today = todayStr();
+  if (!dates.length) return { current: 0, best: 0 };
+  let run = 0, best = 0;
+  for (let d = dates[0]; d <= today; d = addDays(d, 1)) {
+    if (goalMet(mins[d] || 0, g)) { run++; best = Math.max(best, run); }
+    else if (isScheduled(d, g) && d !== today) run = 0;
+  }
+  return { current: run, best };
 }
 
 function renderGoalToday() {
@@ -538,11 +552,11 @@ function renderAccount() {
 }
 
 function render() {
-  if (current === "home") { renderHome(); renderGoalToday(); renderMigrate(); }
+  if (current === "home") { renderHome(); renderGoalToday(); renderMigrate(); renderBackupNudge(); }
   if (current === "library") renderLibrary();
   if (current === "calendar") renderCalendar();
   if (current === "write") renderBookList();
-  if (current === "settings") { renderNotifState(); renderAccount(); renderPersist(); }
+  if (current === "settings") { renderNotifState(); renderAccount(); renderPersist(); $("backupMsg").textContent = lastBackupText(); }
   renderTimer();
   updateBadge();
 }
@@ -670,15 +684,48 @@ function toast(msg) {
 }
 
 // ---------- สำรองข้อมูล ----------
-$("exportBtn").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify({ app: "reading-journal", version: 1, exported: new Date().toISOString(), entries }, null, 2)], { type: "application/json" });
+const LAST_BACKUP_KEY = "reading-journal-last-backup";
+const BACKUP_SNOOZE_KEY = "reading-journal-backup-snooze";
+const BACKUP_EVERY_DAYS = 7;
+const daysBetween = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000);
+
+function exportBackup() {
+  const data = { app: "reading-journal", version: 2, exported: new Date().toISOString(), goal: getGoal(), entries };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `reading-journal-${todayStr()}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  lsSet(LAST_BACKUP_KEY, todayStr());
+  lsDel(BACKUP_SNOOZE_KEY);
   $("backupMsg").textContent = `ส่งออก ${entries.length} บันทึกแล้ว`;
-});
+  toast(`ส่งออก ${entries.length} บันทึกแล้ว เก็บไฟล์ไว้ในที่ปลอดภัย เช่น iCloud Drive`);
+  render();
+}
+$("exportBtn").addEventListener("click", exportBackup);
+$("backupNudgeBtn").addEventListener("click", exportBackup);
+$("backupNudgeLater").addEventListener("click", () => { lsSet(BACKUP_SNOOZE_KEY, addDays(todayStr(), 3)); render(); });
+
+// เตือนสำรองข้อมูลเมื่อไม่ได้ล็อกอิน (ข้อมูลอยู่ในเครื่องเดียว)
+function renderBackupNudge() {
+  const last = lsGet(LAST_BACKUP_KEY, null);
+  const snoozeUntil = lsGet(BACKUP_SNOOZE_KEY, null);
+  const today = todayStr();
+  const firstDate = entries.reduce((m, e) => (e.created || e.date + "T").slice(0, 10) < m ? (e.created || e.date + "T").slice(0, 10) : m, today);
+  const since = last ? daysBetween(last, today) : daysBetween(firstDate, today);
+  const due = mode !== "account" && entries.length > 0 && since >= BACKUP_EVERY_DAYS && !(snoozeUntil && today < snoozeUntil);
+  $("backupNudge").hidden = !due;
+  if (due) $("backupNudgeText").textContent = last
+    ? `สำรองข้อมูลครั้งล่าสุดเมื่อ ${since} วันที่แล้ว บันทึกทั้งหมด ${entries.length} รายการอยู่ในเครื่องนี้เครื่องเดียว ถ้าเครื่องหายหรือล้างข้อมูลเบราว์เซอร์ บันทึกจะหายไปด้วย`
+    : `ยังไม่เคยสำรองข้อมูล บันทึกทั้งหมด ${entries.length} รายการอยู่ในเครื่องนี้เครื่องเดียว ถ้าเครื่องหายหรือล้างข้อมูลเบราว์เซอร์ บันทึกจะหายไปด้วย`;
+}
+function lastBackupText() {
+  const last = lsGet(LAST_BACKUP_KEY, null);
+  if (!last) return "ยังไม่เคยส่งออกไฟล์สำรอง";
+  const n = daysBetween(last, todayStr());
+  return `ส่งออกไฟล์สำรองล่าสุด: ${fmt(last)}${n ? ` (${n} วันที่แล้ว)` : " (วันนี้)"}`;
+}
 $("importFile").addEventListener("change", async ev => {
   const file = ev.target.files[0];
   ev.target.value = "";
@@ -693,8 +740,13 @@ $("importFile").addEventListener("change", async ev => {
       if (!entries.some(x => x.id === e.id)) added++;
       upsert({ ...e, step: Number.isInteger(e.step) ? e.step : 0, nextReview: e.nextReview || addDays(e.date, 1) });
     }
-    $("backupMsg").textContent = `นำเข้าแล้ว เพิ่มใหม่ ${added} บันทึก`;
+    const g = data.goal;
+    if (g && Number.isFinite(+g.minutes) && +g.minutes >= 1 && Array.isArray(g.days) && g.days.length) {
+      lsSet(goalKey(), { minutes: Math.round(+g.minutes), days: g.days.filter(d => Number.isInteger(d) && d >= 0 && d <= 6) });
+      if (mode === "account") { lsSet(goalPendingKey(), true); flush(); }
+    }
     render();
+    $("backupMsg").textContent = `นำเข้าแล้ว เพิ่มใหม่ ${added} บันทึก${g ? " และเป้าหมายการอ่าน" : ""}`;
   } catch {
     $("backupMsg").textContent = "ไฟล์นี้ไม่ใช่ไฟล์สำรองของแอปนี้ ลองเลือกไฟล์ .json ที่ส่งออกจากหน้านี้";
   }
