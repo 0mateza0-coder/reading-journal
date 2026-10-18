@@ -22,8 +22,8 @@
 1. สมัครที่ https://supabase.com แล้วกด **New project** (เลือก Region: Southeast Asia (Singapore))
 2. ไปที่ **SQL Editor** → **New query** → วางเนื้อหาไฟล์ `supabase/schema.sql` → กด **Run**
 3. ไปที่ **Authentication** → **URL Configuration**
-   - **Site URL:** `https://mellow-maamoul-f21d56.netlify.app`
-   - **Redirect URLs:** เพิ่ม `https://mellow-maamoul-f21d56.netlify.app/**`
+   - **Site URL:** `https://rainbow-choux-39e0e4.netlify.app`
+   - **Redirect URLs:** เพิ่ม `https://rainbow-choux-39e0e4.netlify.app/**`
 4. ไปที่ **Project Settings** → **API** แล้วคัดลอก **Project URL** และคีย์ **anon public** มาใส่ใน `config.js`
    - ห้ามใช้คีย์ `service_role` ในไฟล์นี้
 5. อัปโหลดโฟลเดอร์ขึ้น Netlify ใหม่
@@ -40,14 +40,15 @@ python3 -m http.server 8765
 
 แล้วเปิด http://localhost:8765 ในเบราว์เซอร์
 
+## เว็บไซต์
+
+- เว็บหลัก: https://rainbow-choux-39e0e4.netlify.app
+- โค้ด: https://github.com/0mateza0-coder/reading-journal
+- Netlify เชื่อมกับ branch `main` ไว้ (Build command: เว้นว่าง, Publish directory: `.`) ส่งโค้ดขึ้น GitHub แล้วเว็บจะอัปเดตเอง
+
 ## ใช้บนมือถือ
 
-Service Worker และการติดตั้งแอปต้องเปิดผ่าน **HTTPS** จึงต้องนำขึ้นโฮสต์ฟรีก่อน เช่น
-
-- **GitHub Pages:** สร้าง repository แล้วอัปโหลดไฟล์ทั้งหมด จากนั้นไปที่ Settings → Pages แล้วเลือก branch `main`
-- **Netlify Drop:** ลากโฟลเดอร์นี้ไปวางที่ https://app.netlify.com/drop
-
-จากนั้นเปิดลิงก์บนมือถือ
+เปิดลิงก์เว็บหลักบนมือถือ
 - **iPhone:** เปิดใน Safari → ปุ่มแชร์ → "เพิ่มไปยังหน้าจอโฮม"
 - **Android:** เปิดใน Chrome → เมนู → "ติดตั้งแอป"
 
