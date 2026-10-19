@@ -22,8 +22,16 @@
   --tabs-h: 66px;
   color-scheme: light;
 }
+/* ธีม: ค่าเริ่มต้นคือโทนสว่าง (data-theme="light")
+   เลือกได้ในหน้าตั้งค่า: "dark" = มืดเสมอ, "system" = ตามการตั้งค่าของเครื่อง */
+:root[data-theme="dark"] {
+  --bg: #111814; --paper: #19221d; --field: #141c18; --ink: #e8eae0; --muted: #9da99f; --line: #2c3832;
+  --accent: #8fc9b2; --accent-deep: #a9d8c5; --on-accent: #0e1d17; --accent-soft: #1f3129;
+  --gold: #dcb766; --gold-soft: #33301f; --due: #e3a25b; --due-soft: #35281a; --shadow: 0 0 0;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root[data-theme="system"] {
     --bg: #111814; --paper: #19221d; --field: #141c18; --ink: #e8eae0; --muted: #9da99f; --line: #2c3832;
     --accent: #8fc9b2; --accent-deep: #a9d8c5; --on-accent: #0e1d17; --accent-soft: #1f3129;
     --gold: #dcb766; --gold-soft: #33301f; --due: #e3a25b; --due-soft: #35281a; --shadow: 0 0 0;
@@ -303,6 +311,8 @@ a.b-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)
   -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
   border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* จอกว้าง: แท็บอยู่กลางตามความกว้างเนื้อหา ไม่ยืดเต็มจอ */
+  padding-inline: max(0px, calc((100% - 640px) / 2));
 }
 .tabs button {
   position: relative; border: 0; border-radius: 0; background: none; color: var(--muted); box-shadow: none;

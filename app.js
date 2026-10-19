@@ -881,6 +881,28 @@ $("homeTimer").addEventListener("click", () => {
   go("write");
 });
 
+// ---------- ธีม (สว่าง / มืด / ตามเครื่อง) ----------
+const THEME_KEY = "reading-journal-theme";
+const darkMQ = matchMedia("(prefers-color-scheme: dark)");
+const getTheme = () => {
+  let t = null;
+  try { t = localStorage.getItem(THEME_KEY); } catch {}
+  return t === "dark" || t === "system" ? t : "light";
+};
+function applyTheme() {
+  const t = getTheme();
+  document.documentElement.dataset.theme = t;
+  const dark = t === "dark" || (t === "system" && darkMQ.matches);
+  $("themeColor").setAttribute("content", dark ? "#111814" : "#eef0e6");
+  document.querySelectorAll('#themeChoice input').forEach(i => { i.checked = i.value === t; });
+}
+$("themeChoice").addEventListener("change", ev => {
+  try { localStorage.setItem(THEME_KEY, ev.target.value); } catch {}
+  applyTheme();
+});
+darkMQ.addEventListener?.("change", applyTheme);
+applyTheme();
+
 // ---------- พื้นที่เก็บข้อมูลถาวร ----------
 // ขอให้เบราว์เซอร์ไม่ลบข้อมูลของแอปเองเมื่อพื้นที่เหลือน้อยหรือไม่ได้เปิดนาน
 let persisted = null;
