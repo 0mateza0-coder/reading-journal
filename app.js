@@ -504,7 +504,7 @@ function applySettingsFromServer(d) {
   const g = d?.goal;
   if (g && Number.isFinite(+g.minutes) && Array.isArray(g.days)) lsSet(goalKey(), { minutes: +g.minutes, days: g.days });
   if (Array.isArray(d?.books)) lsSet(booksKey(), mergeBooks(getAllBooks(), d.books));
-  if (d?.yearGoal && +d.yearGoal.books >= 1) lsSet(yearGoalKey(), { books: Math.round(+d.yearGoal.books) });
+  if (d?.yearGoal && +d.yearGoal.books >= 1) lsSet(yearGoalKey(), { books: Math.round(+d.yearGoal.books), pages: +d.yearGoal.pages >= 1 ? Math.round(+d.yearGoal.pages) : undefined });
 }
 
 // นับวันที่ครบเป้าติดกัน: ข้ามวันพัก (วันที่ไม่ได้ตั้งใจอ่าน) และไม่ตัดสถิติเพราะวันนี้ที่ยังไม่จบวัน
@@ -865,7 +865,7 @@ $("importFile").addEventListener("change", async ev => {
     if (g && Number.isFinite(+g.minutes) && +g.minutes >= 1 && Array.isArray(g.days) && g.days.length) {
       lsSet(goalKey(), { minutes: Math.round(+g.minutes), days: g.days.filter(d => Number.isInteger(d) && d >= 0 && d <= 6) });
     }
-    if (data.yearGoal && +data.yearGoal.books >= 1) lsSet(yearGoalKey(), { books: Math.round(+data.yearGoal.books) });
+    if (data.yearGoal && +data.yearGoal.books >= 1) lsSet(yearGoalKey(), { books: Math.round(+data.yearGoal.books), pages: +data.yearGoal.pages >= 1 ? Math.round(+data.yearGoal.pages) : undefined });
     let booksAdded = 0;
     if (Array.isArray(data.books)) {
       const list = getAllBooks();

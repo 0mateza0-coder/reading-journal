@@ -1,5 +1,5 @@
 // เปลี่ยนเลขเวอร์ชันทุกครั้งที่แก้ไฟล์แอป เพื่อให้เครื่องที่ติดตั้งไว้โหลดของใหม่
-const CACHE = "reading-journal-v12";
+const CACHE = "reading-journal-v13";
 const SHELL = ["./", "index.html", "app.css", "config.js", "app.js", "board.js", "shelf.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {

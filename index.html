@@ -233,12 +233,23 @@
 
     <!-- สถิติ -->
     <section id="view-stats" class="view" hidden>
-      <div class="card stack challenge" id="stChallenge"></div>
-      <div class="stats four" id="stYear"></div>
-      <div class="card stack" id="stSpeed"></div>
-      <div class="card stack" id="stWeeks"></div>
+      <div class="period-bar">
+        <div class="seg" id="stPeriod" role="group" aria-label="ช่วงเวลาสรุป">
+          <button type="button" data-period="month" aria-pressed="true">รายเดือน</button>
+          <button type="button" data-period="year" aria-pressed="false">รายปี</button>
+        </div>
+        <div class="cal-head period-nav">
+          <button type="button" id="stPrev" aria-label="ก่อนหน้า">‹</button>
+          <h2 id="stLabel" aria-live="polite"></h2>
+          <button type="button" id="stNext" aria-label="ถัดไป">›</button>
+        </div>
+      </div>
+      <div class="card stack" id="stRings"></div>
+      <div class="stats four" id="stTotals"></div>
+      <div class="card stack" id="stTrend"></div>
       <div class="card stack" id="stCats"></div>
       <div class="card stack" id="stTime"></div>
+      <div class="card stack" id="stSpeed"></div>
     </section>
 
     <!-- ปฏิทิน -->

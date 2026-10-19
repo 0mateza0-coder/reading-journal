@@ -7,7 +7,6 @@ let libTab = "shelf";
 let openBookId = null;
 let editingBookId = null;
 let shelfBackfilled = false;
-let weekSel = null; // สัปดาห์ที่แตะดูในกราฟ
 
 const fmtMins = m => {
   m = Math.round(m);
@@ -223,54 +222,220 @@ function renderLibTabs() {
   if (libTab === "shelf") renderShelf();
 }
 
-// ---------- สถิติ ----------
-// วันจันทร์ของสัปดาห์ที่มีวันที่นี้
-const weekStart = ds => { const d = new Date(ds + "T00:00:00"); const wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return ymd(d); };
-const shortDate = ds => { const d = new Date(ds + "T00:00:00"); return `${d.getDate()}/${d.getMonth() + 1}`; };
+// ---------- สถิติ (รายเดือน / รายปี) ----------
+let statPeriod = "month";
+let statMonth = todayStr().slice(0, 7);
+let statYear = thisYear();
+const donutSel = {}; // ส่วนของโดนัทที่แตะเลือกอยู่ แยกตามกราฟ
+const TH_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const yearGoalOf = () => { const g = getYearGoal(); return { books: g.books || 12, pages: g.pages || 3000 }; };
 
-function renderChallenge() {
-  const y = thisYear(), goal = getYearGoal().books;
-  const done = getBooks().filter(b => b.status === "done" && (b.finishedAt || "").startsWith(String(y)));
-  const start = new Date(y, 0, 1), end = new Date(y + 1, 0, 1);
-  const frac = (Date.now() - start) / (end - start);
-  const expected = goal * frac;
-  const diff = done.length - expected;
-  const pct = Math.min(100, Math.round(done.length / goal * 100));
-  const pace = done.length >= goal ? `🎉 ทำได้ตามเป้าปีนี้แล้ว!`
-    : diff >= 0.5 ? `เร็วกว่าแผน ${Math.round(diff)} เล่ม เยี่ยมมาก`
-    : diff > -0.5 ? `เป็นไปตามแผนพอดี`
-    : `ช้ากว่าแผน ${Math.round(-diff)} เล่ม ยังทันนะ`;
-  const left = goal - done.length, weeksLeft = Math.max(1, Math.round((end - Date.now()) / (7 * 86400000)));
-  $("stChallenge").innerHTML = `
-    <div class="goal-row"><h2>ความท้าทายการอ่านปี ${esc(yearLabel(y))}</h2><button class="small" id="ycEdit">แก้เป้าหมาย</button></div>
-    <p class="challenge-num"><b>${done.length}</b> / ${goal} เล่ม</p>
-    <div class="bar challenge-bar" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="อ่านจบ ${done.length} จาก ${goal} เล่ม">
-      <span style="width:${pct}%"></span><i style="left:${Math.min(100, frac * 100).toFixed(1)}%" title="ควรอ่านถึงตรงนี้แล้วตามแผน"></i>
-    </div>
-    <p class="meta">${pace}${left > 0 ? ` · เหลืออีก ${left} เล่ม ประมาณ ${(left / weeksLeft * 4.345).toFixed(1)} เล่มต่อเดือน` : ""}</p>
-    <form class="row" id="ycForm" hidden novalidate>
-      <label>ปีนี้ตั้งใจอ่านจบกี่เล่ม<input type="number" id="ycBooks" min="1" max="1000" inputmode="numeric" value="${goal}"></label>
-      <div class="actions end"><button class="primary" type="submit">บันทึก</button></div>
-    </form>
-    ${done.length ? `<p class="meta">เล่มที่จบแล้ว: ${done.slice(0, 6).map(b => esc(b.title)).join(" · ")}${done.length > 6 ? " …" : ""}</p>` : `<p class="note">กด “✓ อ่านจบแล้ว” ในหน้าหนังสือ แล้วเล่มนั้นจะนับเข้าเป้าหมายนี้</p>`}`;
+const periodPrefix = () => statPeriod === "month" ? statMonth : String(statYear);
+const inPeriod = ds => !!ds && ds.startsWith(periodPrefix());
+const periodLabel = () => statPeriod === "month"
+  ? new Date(statMonth + "-01T00:00:00").toLocaleDateString("th-TH", { month: "long", year: "numeric" })
+  : `ปี ${yearLabel(statYear)}`;
+const daysInMonth = ym => { const [y, m] = ym.split("-").map(Number); return new Date(y, m, 0).getDate(); };
+const isCurrentPeriod = () => statPeriod === "month" ? statMonth === todayStr().slice(0, 7) : statYear === thisYear();
+
+// ---- วงแหวนความคืบหน้า (SVG) ----
+function ring(value, goal, { big, unit, label, tone }) {
+  const pct = goal > 0 ? Math.min(1, value / goal) : 0;
+  const r = 44, c = 2 * Math.PI * r;
+  return `<figure class="ring ${tone}" aria-label="${esc(label)}: ${esc(big)} ${esc(unit)} (${Math.round(pct * 100)}%)">
+    <svg viewBox="0 0 110 110" aria-hidden="true">
+      <circle class="ring-track" cx="55" cy="55" r="${r}"/>
+      <circle class="ring-fill" cx="55" cy="55" r="${r}" stroke-dasharray="${(c * pct).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 55 55)"/>
+    </svg>
+    <figcaption><b>${esc(big)}</b><span>${esc(unit)}</span><small>${esc(label)} · ${Math.round(pct * 100)}%</small></figcaption>
+  </figure>`;
 }
 
-function renderYearTotals() {
-  const y = String(thisYear());
-  const list = entries.filter(e => e.date.startsWith(y));
-  const done = getBooks().filter(b => b.status === "done" && (b.finishedAt || "").startsWith(y)).length;
+// ---- โดนัท (SVG) + รายการคำอธิบาย ----
+// segs: [{key, label, v, color}] เรียงตามลำดับสีคงที่ (สีผูกกับหมวด ไม่ใช่ลำดับมากน้อย)
+function donut(id, segs, { centerTop, centerSub }) {
+  const total = segs.reduce((a, s) => a + s.v, 0);
+  const r = 46, c = 2 * Math.PI * r, gap = segs.filter(s => s.v).length > 1 ? 2.2 : 0;
+  let off = 0;
+  const sel = segs.find(s => s.key === donutSel[id] && s.v);
+  const arcs = segs.filter(s => s.v).map(s => {
+    const len = s.v / total * c;
+    const arc = `<circle class="donut-seg${sel && sel.key !== s.key ? " dim" : ""}" cx="60" cy="60" r="${r}" style="stroke:${s.color}"
+      stroke-dasharray="${Math.max(0.01, len - gap).toFixed(2)} ${c.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 60 60)"
+      data-donut="${id}" data-key="${esc(s.key)}"><title>${esc(s.label)}: ${fmtMins(s.v)} (${Math.round(s.v / total * 100)}%)</title></circle>`;
+    off += len;
+    return arc;
+  }).join("");
+  const center = sel
+    ? `<b>${Math.round(sel.v / total * 100)}%</b><span>${esc(sel.label)}</span><small>${fmtMins(sel.v)}</small>`
+    : `<b>${esc(centerTop)}</b><span>${esc(centerSub)}</span>`;
+  const rows = segs.filter(s => s.v).sort((a, b) => b.v - a.v).map(s => `
+    <button type="button" class="legend-row${sel?.key === s.key ? " on" : ""}" data-donut="${id}" data-key="${esc(s.key)}" aria-pressed="${sel?.key === s.key}">
+      <i style="background:${s.color}"></i><span class="lg-label">${esc(s.label)}</span>
+      <span class="lg-bar"><span style="width:${(s.v / total * 100).toFixed(1)}%;background:${s.color}"></span></span>
+      <span class="lg-val">${Math.round(s.v / total * 100)}%<small>${fmtMins(s.v)}</small></span>
+    </button>`).join("");
+  return `<div class="donut-wrap">
+    <div class="donut"><svg viewBox="0 0 120 120" role="img" aria-label="${esc(centerSub)}">
+      <circle class="donut-track" cx="60" cy="60" r="${r}"/>${arcs}</svg>
+      <div class="donut-center">${center}</div></div>
+    <div class="legend">${rows}</div>
+  </div>`;
+}
+
+// ---- กราฟแท่งแนวตั้ง (ใช้ซ้ำ) ----
+function barChart(id, bars, { goal, fmtV, xEvery = 1, readout }) {
+  const max = Math.max(goal || 0, ...bars.map(b => b.v), 1);
+  const nice = v => { const p = Math.pow(10, Math.floor(Math.log10(v))); const n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * p; };
+  const top = nice(max);
+  const selKey = donutSel[id] ?? (bars.findLast(b => !b.future && b.v) || bars.findLast(b => !b.future))?.key;
+  const sel = bars.find(b => b.key === selKey);
+  return `<div class="wchart" style="--goal:${goal ? (goal / top * 100).toFixed(1) : -10}%;--n:${bars.length}">
+      <div class="wchart-grid" aria-hidden="true"><span><em>${fmtV(top)}</em></span><span><em>${fmtV(top / 2)}</em></span><span><em>0</em></span></div>
+      ${goal ? `<div class="wchart-goal" aria-hidden="true"><span>เป้า</span></div>` : ""}
+      <div class="wchart-bars">${bars.map((b, i) => `
+        <button type="button" class="wbar${b.key === selKey ? " sel" : ""}${goal && b.v >= goal ? " met" : ""}${b.v ? "" : " zero"}${b.future ? " future" : ""}"
+          data-bar="${id}" data-key="${b.key}" aria-label="${esc(b.aria)}" aria-pressed="${b.key === selKey}">
+          <span class="wbar-fill" style="height:${(b.v / top * 100).toFixed(1)}%"></span>
+          ${i % xEvery === 0 || i === bars.length - 1 ? `<span class="wbar-x">${esc(b.x)}</span>` : ""}
+        </button>`).join("")}</div>
+    </div>
+    ${sel ? `<p class="wchart-readout">${readout(sel)}</p>` : ""}`;
+}
+
+function renderRings() {
+  const g = getGoal(), yg = yearGoalOf();
+  if (statPeriod === "year") {
+    const y = String(statYear);
+    const done = getBooks().filter(b => b.status === "done" && (b.finishedAt || "").startsWith(y));
+    const pages = entries.filter(e => e.date.startsWith(y)).reduce((s, e) => s + pagesOf(e), 0);
+    let pace = "";
+    if (isCurrentPeriod()) {
+      const start = new Date(statYear, 0, 1), end = new Date(statYear + 1, 0, 1), frac = (Date.now() - start) / (end - start);
+      const diff = done.length - yg.books * frac, left = yg.books - done.length;
+      const monthsLeft = Math.max(0.5, (end - Date.now()) / (30.44 * 86400000));
+      pace = done.length >= yg.books ? "🎉 ทำได้ตามเป้าจำนวนเล่มปีนี้แล้ว!"
+        : (diff >= 0.5 ? `เร็วกว่าแผน ${Math.round(diff)} เล่ม` : diff > -0.5 ? "เป็นไปตามแผนพอดี" : `ช้ากว่าแผน ${Math.round(-diff)} เล่ม`)
+          + ` · ต้องอ่านอีกเดือนละ ${(left / monthsLeft).toFixed(1)} เล่ม และ ${Math.max(0, Math.ceil((yg.pages - pages) / monthsLeft)).toLocaleString("th-TH")} หน้า`;
+    }
+    $("stRings").innerHTML = `
+      <div class="goal-row"><h2>เป้าหมายปี ${esc(yearLabel(statYear))}</h2><button class="small" id="ycEdit">แก้เป้าหมาย</button></div>
+      <div class="rings">
+        ${ring(done.length, yg.books, { big: `${done.length}/${yg.books}`, unit: "เล่ม", label: "อ่านจบ", tone: "gold" })}
+        ${ring(pages, yg.pages, { big: pages.toLocaleString("th-TH"), unit: `/ ${yg.pages.toLocaleString("th-TH")} หน้า`, label: "หน้าที่อ่าน", tone: "green" })}
+      </div>
+      ${pace ? `<p class="meta">${pace}</p>` : ""}
+      <form class="row" id="ycForm" hidden novalidate>
+        <label>เป้าจำนวนเล่มต่อปี<input type="number" id="ycBooks" min="1" max="1000" inputmode="numeric" value="${yg.books}"></label>
+        <label>เป้าจำนวนหน้าต่อปี<input type="number" id="ycPages" min="1" max="1000000" inputmode="numeric" value="${yg.pages}"></label>
+        <div class="actions end"><button class="primary" type="submit">บันทึก</button></div>
+      </form>
+      ${done.length ? `<p class="meta">อ่านจบแล้ว: ${done.slice(0, 6).map(b => esc(b.title)).join(" · ")}${done.length > 6 ? " …" : ""}</p>`
+        : `<p class="note">กด “✓ อ่านจบแล้ว” ในหน้าหนังสือ แล้วเล่มนั้นจะนับเข้าเป้าหมายนี้</p>`}`;
+  } else {
+    const days = daysInMonth(statMonth), today = todayStr();
+    let planned = 0, met = 0, mins = 0, goalMins = 0;
+    for (let d = 1; d <= days; d++) {
+      const ds = `${statMonth}-${String(d).padStart(2, "0")}`;
+      const m = minutesOn(ds);
+      mins += m;
+      if (isScheduled(ds, g)) { goalMins += g.minutes; if (ds <= today) planned++; }
+      if (goalMet(m, g)) met++;
+    }
+    $("stRings").innerHTML = `
+      <div class="goal-row"><h2>${isCurrentPeriod() ? "เป้าหมายเดือนนี้" : "เป้าหมายรายวันของเดือน"}</h2><button class="small" data-go="calendar">ดูปฏิทิน</button></div>
+      <div class="rings">
+        ${ring(met, planned || 1, { big: `${met}/${planned}`, unit: "วัน", label: "ครบเป้ารายวัน", tone: "gold" })}
+        ${ring(mins, goalMins, { big: fmtMins(mins), unit: `/ ${fmtMins(goalMins)}`, label: "เวลาอ่านทั้งเดือน", tone: "green" })}
+      </div>
+      <p class="meta">เป้ารายวัน ${g.minutes} นาที · ${isCurrentPeriod() ? "นับถึงวันนี้" : "ทั้งเดือน"}มี ${planned} วันที่ตั้งใจอ่าน</p>`;
+  }
+}
+
+function renderTotals() {
+  const list = entries.filter(e => inPeriod(e.date));
+  const done = getBooks().filter(b => b.status === "done" && inPeriod(b.finishedAt)).length;
   const mins = list.reduce((s, e) => s + (+e.minutes || 0), 0);
-  $("stYear").innerHTML = `
-    <div class="stat"><b>${done}</b><span>เล่มที่จบปีนี้</span></div>
+  $("stTotals").innerHTML = `
+    <div class="stat"><b>${done}</b><span>เล่มที่อ่านจบ</span></div>
     <div class="stat"><b>${list.reduce((s, e) => s + pagesOf(e), 0).toLocaleString("th-TH")}</b><span>หน้า</span></div>
     <div class="stat"><b>${(mins / 60).toFixed(mins >= 600 ? 0 : 1)}</b><span>ชั่วโมง</span></div>
     <div class="stat"><b>${new Set(list.map(e => e.date)).size}</b><span>วันที่อ่าน</span></div>`;
 }
 
+function renderTrend() {
+  const today = todayStr();
+  if (statPeriod === "month") {
+    const g = getGoal(), days = daysInMonth(statMonth);
+    const bars = [];
+    for (let d = 1; d <= days; d++) {
+      const ds = `${statMonth}-${String(d).padStart(2, "0")}`, v = minutesOn(ds);
+      bars.push({ key: ds, v, x: String(d), future: ds > today, aria: `${fmt(ds)} อ่าน ${fmtMins(v)}${goalMet(v, g) ? " ครบเป้า" : ""}` });
+    }
+    $("stTrend").innerHTML = `<h2>เวลาอ่านรายวัน</h2><p class="meta">เส้นประคือเป้าวันละ ${g.minutes} นาที · แตะแท่งเพื่อดูตัวเลข</p>`
+      + barChart("mday", bars, { goal: g.minutes, fmtV: v => `${Math.round(v)} น.`, xEvery: 5,
+        readout: b => `<b>${fmt(b.key)}</b> อ่าน ${fmtMins(b.v)}${goalMet(b.v, g) ? " · ครบเป้า ✓" : ""}` });
+  } else {
+    const y = String(statYear), yg = yearGoalOf();
+    const pages = Array(12).fill(0), books = Array(12).fill(0);
+    for (const e of entries) if (e.date.startsWith(y)) pages[+e.date.slice(5, 7) - 1] += pagesOf(e);
+    for (const b of getBooks()) if (b.status === "done" && (b.finishedAt || "").startsWith(y)) books[+b.finishedAt.slice(5, 7) - 1]++;
+    const mk = (arr, unit) => arr.map((v, i) => { const key = `${y}-${String(i + 1).padStart(2, "0")}`; return { key, v, x: TH_MONTHS[i], future: key > today.slice(0, 7), aria: `${TH_MONTHS[i]} ${v.toLocaleString("th-TH")} ${unit}` }; });
+    $("stTrend").innerHTML = `<h2>หน้าที่อ่านรายเดือน</h2><p class="meta">เส้นประคือเป้าเฉลี่ยเดือนละ ${Math.round(yg.pages / 12).toLocaleString("th-TH")} หน้า</p>`
+      + barChart("ypages", mk(pages, "หน้า"), { goal: yg.pages / 12, fmtV: v => Math.round(v).toLocaleString("th-TH"), xEvery: 2,
+        readout: b => `<b>${TH_MONTHS[+b.key.slice(5) - 1]}</b> อ่าน ${b.v.toLocaleString("th-TH")} หน้า` })
+      + `<h2 class="sub-h">เล่มที่อ่านจบรายเดือน</h2>`
+      + barChart("ybooks", mk(books, "เล่ม"), { goal: yg.books / 12, fmtV: v => (Math.round(v * 10) / 10).toLocaleString("th-TH"), xEvery: 2,
+        readout: b => `<b>${TH_MONTHS[+b.key.slice(5) - 1]}</b> อ่านจบ ${b.v} เล่ม` });
+  }
+}
+
+function renderCategories() {
+  const by = {};
+  for (const e of entries) {
+    const m = +e.minutes || 0;
+    if (!m || !inPeriod(e.date)) continue;
+    const k = findBook(e.book)?.category || "";
+    by[k] = (by[k] || 0) + m;
+  }
+  const total = Object.values(by).reduce((a, b) => a + b, 0);
+  // สีผูกกับหมวดตามลำดับคงที่ใน CATEGORIES; "ไม่ระบุ" เป็นสีเทาเสมอ
+  const segs = [...CATEGORIES.map(([k, l], i) => ({ key: k, label: l, v: by[k] || 0, color: `var(--c${i + 1})` })),
+    { key: "none", label: "ยังไม่ระบุหมวด", v: by[""] || 0, color: "var(--c-none)" }];
+  const top = segs.filter(s => s.key !== "none" && s.v).sort((a, b) => b.v - a.v)[0];
+  $("stCats").innerHTML = `<h2>อ่านหนังสือแนวไหนบ้าง</h2>` + (total
+    ? `<p class="meta">สัดส่วนเวลาที่อ่านแต่ละหมวด${top ? ` · อ่าน<b>${esc(top.label)}</b>มากที่สุด` : ""} · แตะเพื่อดูรายละเอียด</p>`
+      + donut("cats", segs, { centerTop: total >= 60 ? `${(total / 60).toFixed(total >= 600 ? 0 : 1)} ชม.` : `${total} นาที`, centerSub: "เวลาอ่านรวม" })
+      + (by[""] ? `<p class="note">ระบุหมวดหมู่ได้ที่ ชั้นหนังสือ → เลือกเล่ม → แก้ไขข้อมูล</p>` : "")
+    : `<p class="note">${statPeriod === "month" ? "เดือนนี้" : "ปีนี้"}ยังไม่มีบันทึกที่ใส่เวลาอ่าน</p>`);
+}
+
+const DAYPARTS = [["morning", "เช้า (05–11 น.)", 5, 11], ["afternoon", "บ่าย (11–17 น.)", 11, 17], ["evening", "เย็น (17–21 น.)", 17, 21], ["night", "ดึก (21–05 น.)", 21, 29]];
+const DAYPART_TIP = { morning: "สมองสดชื่น เหมาะกับหนังสือที่ต้องใช้สมาธิ", afternoon: "ลองอ่านช่วงพักกลางวันสั้น ๆ", evening: "อ่านหลังเลิกงาน/เลิกเรียน ช่วยผ่อนคลาย", night: "อ่านก่อนนอนดี แต่อย่าลืมนอนให้พอนะ" };
+function renderTimeOfDay() {
+  const v = DAYPARTS.map(() => 0);
+  let timed = 0;
+  for (const e of entries) {
+    const m = +e.minutes || 0, at = e.startedAt || e.created;
+    if (!m || !at || !inPeriod(e.date)) continue;
+    let h = new Date(at).getHours(); if (h < 5) h += 24;
+    const i = DAYPARTS.findIndex(([, , a, b]) => h >= a && h < b);
+    if (i >= 0) { v[i] += m; if (e.startedAt) timed++; }
+  }
+  const total = v.reduce((a, b) => a + b, 0);
+  const segs = DAYPARTS.map(([k, l], i) => ({ key: k, label: l, v: v[i], color: `var(--c${i + 1})` }));
+  const best = segs.reduce((a, b) => b.v > a.v ? b : a, segs[0]);
+  $("stTime").innerHTML = `<h2>ช่วงเวลาที่อ่าน</h2>` + (total
+    ? `<p class="meta">อ่านช่วง<b>${esc(best.label.split(" ")[0])}</b>บ่อยที่สุด · ${DAYPART_TIP[best.key]}</p>`
+      + donut("time", segs, { centerTop: best.label.split(" ")[0], centerSub: "ช่วงที่อ่านบ่อยที่สุด" })
+      + `<p class="note">${timed ? `อิงจากเวลาเริ่มจับเวลา (${timed} ครั้ง) และเวลาที่กดบันทึก` : "ตอนนี้อิงจากเวลาที่กดบันทึก ถ้าใช้ตัวจับเวลา จะได้เวลาเริ่มอ่านจริงที่แม่นกว่า"}</p>`
+    : `<p class="note">${statPeriod === "month" ? "เดือนนี้" : "ปีนี้"}ยังไม่มีบันทึกที่ใส่เวลาอ่าน</p>`);
+}
+
 function renderSpeed() {
   const sp = readingSpeed();
   const reading = getBooks().filter(b => b.status === "reading").map(b => ({ b, fc: bookForecast(b) })).filter(x => x.fc?.daysLeft);
-  $("stSpeed").innerHTML = `<h2>ความเร็วในการอ่าน</h2>` + (sp
+  $("stSpeed").innerHTML = `<h2>ความเร็วในการอ่าน <span class="count">ทั้งหมด</span></h2>` + (sp
     ? `<p class="hero-num"><b>${Math.round(sp.ppm * 60)}</b> หน้า/ชั่วโมง</p>
        <p class="meta">เฉลี่ยจาก ${sp.n} บันทึกที่ใส่ทั้งเลขหน้าและเวลา (${(1 / sp.ppm).toFixed(1)} นาทีต่อหน้า)</p>
        ${reading.length ? `<ul class="forecast-list">${reading.map(({ b, fc }) =>
@@ -278,107 +443,52 @@ function renderSpeed() {
     : `<p class="note">ใส่ทั้งเลขหน้าและเวลาที่อ่านในบันทึก แอปจะคำนวณความเร็วและคาดการณ์วันอ่านจบให้</p>`);
 }
 
-// กราฟแท่ง: นาทีที่อ่านต่อสัปดาห์ 8 สัปดาห์ล่าสุด พร้อมเส้นเป้าหมายรายสัปดาห์
-function renderWeeks() {
-  const g = getGoal();
-  const thisWk = weekStart(todayStr());
-  const weeks = [];
-  for (let i = 7; i >= 0; i--) weeks.push(addDays(thisWk, -7 * i));
-  const mins = Object.fromEntries(weeks.map(w => [w, 0]));
-  for (const e of entries) { const w = weekStart(e.date); if (w in mins) mins[w] += +e.minutes || 0; }
-  const weekGoal = g.minutes * g.days.length;
-  const max = Math.max(weekGoal, ...Object.values(mins), 1);
-  const top = Math.ceil(max / 30) * 30; // ปัดสเกลเป็นหลักครึ่งชั่วโมง
-  if (weekSel == null || !weeks.includes(weekSel)) weekSel = thisWk;
-  const met = weeks.filter(w => mins[w] >= weekGoal).length;
-  const sel = mins[weekSel];
-  $("stWeeks").innerHTML = `
-    <h2>เวลาอ่าน 8 สัปดาห์ล่าสุด</h2>
-    <p class="meta">ครบเป้าสัปดาห์ละ ${fmtMins(weekGoal)} ไป ${met} จาก 8 สัปดาห์ · แตะแท่งเพื่อดูตัวเลข</p>
-    <div class="wchart" style="--goal:${(weekGoal / top * 100).toFixed(1)}%">
-      <div class="wchart-grid" aria-hidden="true"><span><em>${fmtMins(top)}</em></span><span><em>${fmtMins(top / 2)}</em></span><span><em>0</em></span></div>
-      <div class="wchart-goal" aria-hidden="true"><span>เป้า</span></div>
-      <div class="wchart-bars">${weeks.map(w => `
-        <button type="button" class="wbar${w === weekSel ? " sel" : ""}${mins[w] >= weekGoal ? " met" : ""}${mins[w] ? "" : " zero"}" data-week="${w}"
-          aria-label="สัปดาห์ที่เริ่ม ${fmt(w)} อ่าน ${fmtMins(mins[w])}${mins[w] >= weekGoal ? " ครบเป้า" : ""}" aria-pressed="${w === weekSel}">
-          <span class="wbar-fill" style="height:${(mins[w] / top * 100).toFixed(1)}%"></span>
-          <span class="wbar-x">${w === thisWk ? "นี้" : shortDate(w)}</span>
-        </button>`).join("")}</div>
-    </div>
-    <p class="wchart-readout"><b>${w2label(weekSel, thisWk)}</b> อ่าน ${fmtMins(sel)}${sel >= weekGoal ? " · ครบเป้า ✓" : ` · ขาดอีก ${fmtMins(weekGoal - sel)}`}</p>`;
-}
-const w2label = (w, thisWk) => w === thisWk ? "สัปดาห์นี้" : `${fmt(w)} – ${fmt(addDays(w, 6))}`;
-
-// แถบแนวนอน: ใช้กับหมวดหมู่และช่วงเวลา (สีเดียว ตัวหนังสือบอกชื่อ)
-function hbars(rows, total) {
-  const max = Math.max(...rows.map(r => r.v), 1);
-  return `<div class="hbars">${rows.map(r => `
-    <div class="hbar" title="${esc(r.label)}: ${fmtMins(r.v)} (${Math.round(r.v / total * 100)}%)">
-      <span class="hbar-label">${esc(r.label)}</span>
-      <span class="hbar-track"><span class="hbar-fill${r.top ? " top" : ""}" style="width:${(r.v / max * 100).toFixed(1)}%"></span></span>
-      <span class="hbar-val">${Math.round(r.v / total * 100)}%<small>${fmtMins(r.v)}</small></span>
-    </div>`).join("")}</div>`;
-}
-
-function renderCategories() {
-  const by = {};
-  for (const e of entries) {
-    const m = +e.minutes || 0;
-    if (!m) continue;
-    const k = findBook(e.book)?.category || "";
-    by[k] = (by[k] || 0) + m;
-  }
-  const total = Object.values(by).reduce((a, b) => a + b, 0);
-  const rows = Object.entries(by).map(([k, v]) => ({ label: k ? catLabel(k) : "ยังไม่ระบุหมวด", v, k })).sort((a, b) => b.v - a.v);
-  if (rows[0]) rows[0].top = true;
-  const named = rows.filter(r => r.k);
-  $("stCats").innerHTML = `<h2>อ่านหนังสือแนวไหนบ้าง</h2>` + (total
-    ? `<p class="meta">สัดส่วนเวลาที่อ่านแต่ละหมวด${named.length ? ` · อ่าน${named[0].label}มากที่สุด` : ""}</p>${hbars(rows, total)}
-       ${by[""] ? `<p class="note">ระบุหมวดหมู่ได้ในหน้าหนังสือแต่ละเล่ม (ชั้นหนังสือ → เลือกเล่ม → แก้ไขข้อมูล)</p>` : ""}`
-    : `<p class="note">บันทึกเวลาที่อ่าน แล้วระบุหมวดหมู่ของหนังสือในชั้นหนังสือ จะเห็นสัดส่วนที่นี่</p>`);
-}
-
-const DAYPARTS = [["เช้า (05–11 น.)", 5, 11], ["บ่าย (11–17 น.)", 11, 17], ["เย็น (17–21 น.)", 17, 21], ["ดึก (21–05 น.)", 21, 29]];
-function renderTimeOfDay() {
-  const v = DAYPARTS.map(() => 0);
-  let timed = 0;
-  for (const e of entries) {
-    const m = +e.minutes || 0;
-    const at = e.startedAt || e.created;
-    if (!m || !at) continue;
-    let h = new Date(at).getHours(); if (h < 5) h += 24;
-    const i = DAYPARTS.findIndex(([, a, b]) => h >= a && h < b);
-    if (i >= 0) { v[i] += m; if (e.startedAt) timed++; }
-  }
-  const total = v.reduce((a, b) => a + b, 0);
-  const rows = DAYPARTS.map(([label], i) => ({ label, v: v[i] }));
-  const best = rows.reduce((a, b) => b.v > a.v ? b : a, rows[0]);
-  best.top = total > 0;
-  const tip = { "เช้า": "สมองสดชื่น เหมาะกับหนังสือที่ต้องใช้สมาธิ", "บ่าย": "ลองอ่านช่วงพักกลางวันสั้น ๆ", "เย็น": "อ่านหลังเลิกงาน/เลิกเรียน ช่วยผ่อนคลาย", "ดึก": "อ่านก่อนนอนดี แต่อย่าลืมนอนให้พอนะ" }[best.label.split(" ")[0]];
-  $("stTime").innerHTML = `<h2>ช่วงเวลาที่อ่าน</h2>` + (total
-    ? `<p class="meta">คุณอ่านช่วง<b>${esc(best.label.split(" ")[0])}</b>บ่อยที่สุด · ${tip}</p>${hbars(rows.filter(r => r.v), total)}
-       <p class="note">${timed ? `อิงจากเวลาเริ่มจับเวลา (${timed} ครั้ง) และเวลาที่กดบันทึก` : "ตอนนี้อิงจากเวลาที่กดบันทึก ถ้าใช้ตัวจับเวลา จะได้เวลาเริ่มอ่านจริงที่แม่นกว่า"}</p>`
-    : `<p class="note">บันทึกเวลาที่อ่าน แล้วจะเห็นว่าคุณอ่านช่วงไหนของวันบ่อยที่สุด</p>`);
-}
-
 function renderStats() {
-  renderChallenge(); renderYearTotals(); renderSpeed(); renderWeeks(); renderCategories(); renderTimeOfDay();
+  document.querySelectorAll("#stPeriod [data-period]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.period === statPeriod)));
+  $("stLabel").textContent = periodLabel();
+  $("stNext").disabled = isCurrentPeriod();
+  renderRings(); renderTotals(); renderTrend(); renderCategories(); renderTimeOfDay(); renderSpeed();
 }
+
+$("stPeriod").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-period]");
+  if (!b) return;
+  statPeriod = b.dataset.period;
+  if (statPeriod === "year") statYear = +statMonth.slice(0, 4); else if (statMonth.slice(0, 4) !== String(statYear)) statMonth = `${statYear}-${statYear === thisYear() ? todayStr().slice(5, 7) : "12"}`;
+  for (const k in donutSel) delete donutSel[k];
+  renderStats();
+});
+function stepPeriod(n) {
+  if (statPeriod === "month") { const [y, m] = statMonth.split("-").map(Number); statMonth = ymd(new Date(y, m - 1 + n, 1)).slice(0, 7); statYear = +statMonth.slice(0, 4); }
+  else statYear += n;
+  for (const k in donutSel) delete donutSel[k];
+  renderStats();
+}
+$("stPrev").addEventListener("click", () => stepPeriod(-1));
+$("stNext").addEventListener("click", () => { if (!isCurrentPeriod()) stepPeriod(1); });
 
 $("view-stats").addEventListener("click", ev => {
-  const w = ev.target.closest("[data-week]");
-  if (w) { weekSel = w.dataset.week; renderWeeks(); return; }
+  const bar = ev.target.closest("[data-bar]");
+  if (bar) { donutSel[bar.dataset.bar] = bar.dataset.key; renderTrend(); return; }
+  const seg = ev.target.closest("[data-donut]");
+  if (seg) {
+    const id = seg.dataset.donut;
+    donutSel[id] = donutSel[id] === seg.dataset.key ? null : seg.dataset.key;
+    if (id === "cats") renderCategories(); else renderTimeOfDay();
+    return;
+  }
   if (ev.target.closest("#ycEdit")) { const f = $("ycForm"); f.hidden = !f.hidden; if (!f.hidden) $("ycBooks").focus(); }
 });
 $("view-stats").addEventListener("submit", ev => {
   if (ev.target.id !== "ycForm") return;
   ev.preventDefault();
-  const n = Math.round(+$("ycBooks").value);
+  const n = Math.round(+$("ycBooks").value), p = Math.round(+$("ycPages").value);
   if (!(n >= 1 && n <= 1000)) { toast("ใส่จำนวนเล่มระหว่าง 1 ถึง 1,000"); return; }
-  lsSet(yearGoalKey(), { books: n });
+  if (!(p >= 1 && p <= 1000000)) { toast("ใส่จำนวนหน้าระหว่าง 1 ถึง 1,000,000"); return; }
+  lsSet(yearGoalKey(), { books: n, pages: p });
   markSettingsDirty();
-  toast(`ตั้งเป้าปีนี้ ${n} เล่มแล้ว`);
-  renderChallenge();
+  toast(`ตั้งเป้าปีนี้ ${n} เล่ม ${p.toLocaleString("th-TH")} หน้าแล้ว`);
+  renderRings(); renderTrend();
 });
 
 // ---------- เชื่อมกับ app.js ----------
