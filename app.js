@@ -6,7 +6,13 @@ const STORAGE_KEY = "reading-journal-entries";
 const NOTIFIED_KEY = "reading-journal-notified";
 const FIELDS = ["date", "book", "chapter", "pFrom", "pTo", "minutes", "goal", "k1", "k2", "k3", "summary", "questions", "apply", "quote"];
 const NUMERIC = ["pFrom", "pTo", "minutes"];
-const TITLES = { login: "สมุดบันทึกการอ่าน", home: "สมุดบันทึกการอ่าน", write: "บันทึกวันนี้", calendar: "ปฏิทินการอ่าน", library: "คลังบันทึก", review: "ทบทวน", settings: "ตั้งค่า" };
+const TITLES = {
+  login: "สมุดบันทึกการอ่าน", home: "สมุดบันทึกการอ่าน", write: "บันทึกวันนี้", calendar: "ปฏิทินการอ่าน",
+  library: "คลังบันทึก", review: "ทบทวน", settings: "ตั้งค่า",
+  board: "เว็บบอร์ดรีวิว", post: "รีวิวหนังสือ", compose: "เขียนรีวิว"
+};
+// หน้าย่อยที่ให้ไฮไลต์แท็บไหนในแถบเมนู
+const TAB_OF = { post: "board", compose: "board", review: "home" };
 
 const $ = id => document.getElementById(id);
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -225,7 +231,10 @@ $("recoveryForm").addEventListener("submit", async ev => {
   if (user) { document.body.classList.remove("auth"); go("home"); }
 });
 
-function showLogin() {
+// หน้าที่จะกลับไปหลังล็อกอิน (เช่น กดล็อกอินจากเว็บบอร์ด)
+let returnAfterLogin = null;
+function showLogin(returnTo) {
+  returnAfterLogin = typeof returnTo === "string" ? returnTo : null;
   document.body.classList.add("auth");
   setAuthMode("signin");
   go("login");
@@ -236,7 +245,8 @@ function enterGuest() {
   entries = load();
   document.body.classList.remove("auth");
   setSync();
-  go("home");
+  go(returnAfterLogin || "home");
+  returnAfterLogin = null;
 }
 
 function enterAccount(u) {
@@ -247,11 +257,12 @@ function enterAccount(u) {
   entries = load();
   document.body.classList.remove("auth");
   setSync();
-  go("home");
+  go(returnAfterLogin || "home");
+  returnAfterLogin = null;
   pull();
 }
 
-$("signInBtn").addEventListener("click", showLogin);
+$("signInBtn").addEventListener("click", () => showLogin("settings"));
 $("signOutBtn").addEventListener("click", async () => {
   const p = getPending();
   if (p.up.length || p.del.length || goalPending()) {
@@ -295,9 +306,11 @@ function go(view) {
   // ฟอร์มใหม่ที่ยังไม่ได้กรอก ให้วันที่เป็นวันนี้เสมอ (ร่างที่กรอกค้างไว้จะไม่ถูกล้าง)
   if (view === "write" && !editingId && !$("book").value) $("date").value = todayStr();
   document.querySelectorAll(".view").forEach(v => v.hidden = v.id !== "view-" + view);
+  const tab = TAB_OF[view] || view;
   document.querySelectorAll(".tabs button").forEach(b => {
-    if (b.dataset.go === view) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    if (b.dataset.go === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
+  $("settingsBtn").classList.toggle("on", view === "settings");
   $("viewTitle").textContent = view === "write" && editingId ? "แก้ไขบันทึก" : TITLES[view];
   window.scrollTo(0, 0);
   render();
@@ -557,6 +570,7 @@ function render() {
   if (current === "calendar") renderCalendar();
   if (current === "write") renderBookList();
   if (current === "settings") { renderNotifState(); renderAccount(); renderPersist(); $("backupMsg").textContent = lastBackupText(); }
+  if (typeof onBoardRender === "function") onBoardRender(current);
   renderTimer();
   updateBadge();
 }
@@ -929,5 +943,6 @@ async function start() {
   if (wantsWrite && current !== "login") go("write");
   notifyDue();
   ensurePersist();
+  if (typeof onAppReady === "function") onAppReady();
 }
 start();

@@ -183,6 +183,42 @@ fieldset.days { padding: 10px 12px; background: var(--bg); }
 .bar span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .3s; }
 .goal-today.done .bar span { background: var(--due); }
 
+/* ปุ่มตั้งค่าบนหัว */
+.top-right { display: flex; align-items: center; gap: 8px; }
+.icon-btn { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
+.icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.icon-btn.on { color: var(--accent); border-color: var(--accent); }
+.actions.end { align-self: end; }
+
+/* เว็บบอร์ดรีวิว */
+.board-bar { display: flex; gap: 10px; flex-wrap: wrap; }
+.board-bar .grow { flex: 1 1 200px; }
+.board-bar label:not(.grow) { flex: 0 1 140px; }
+.cat-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 4px; }
+.cat-chips::-webkit-scrollbar { display: none; }
+.cat-chips .cat { white-space: nowrap; border-radius: 999px; padding: 5px 13px; font-size: .86rem; flex-shrink: 0; }
+.cat-chips .cat.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+a.b-card { color: inherit; text-decoration: none; }
+a.b-card:hover { border-color: var(--accent); }
+.b-card .excerpt { color: var(--muted); font-size: .92rem; }
+.book { margin: 0; font-size: .92rem; }
+.stars { color: var(--due); letter-spacing: .05em; font-size: .9rem; white-space: nowrap; }
+.big-stars { font-size: 1.15rem; }
+.post { display: grid; gap: 10px; }
+.post-title { font-size: 1.35rem; line-height: 1.4; text-wrap: balance; }
+.post-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; border-top: 1px solid var(--line); padding-top: 12px; }
+button.back { justify-self: start; text-decoration: none; }
+.comment { border-bottom: 1px solid var(--line); padding-block: 10px; display: grid; gap: 4px; min-width: 0; }
+.comment p { margin: 0; }
+.comment-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.lbl-like { display: block; font-size: .9rem; font-weight: 500; margin-bottom: 4px; }
+.stars-input { display: flex; gap: 4px; }
+.stars-input label { position: relative; display: block; cursor: pointer; font-size: 1.9rem; line-height: 1; color: var(--line); font-weight: 400; }
+.stars-input label.lit { color: var(--due); }
+.stars-input input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.stars-input label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
 /* ตัวจับเวลาอ่าน */
 .home-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .home-actions .big { padding: 14px 8px; }
