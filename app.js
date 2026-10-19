@@ -902,8 +902,21 @@ function renderPersist() {
 
 // ---------- เริ่มต้น ----------
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register("sw.js").then(reg => {
+    // เช็กเวอร์ชันใหม่ทุกครั้งที่กลับมาเปิดแอป
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
+  // เวอร์ชันใหม่เริ่มทำงานแล้ว: รีโหลดเอง ยกเว้นกำลังพิมพ์ค้างอยู่ จะขึ้นปุ่มให้กดเองแทน
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloading) return;
+    const typing = (current === "write" && ($("book").value || $("summary").value)) || current === "compose" || current === "login";
+    if (!typing) { reloading = true; location.reload(); return; }
+    $("updateBar").hidden = false;
+  });
 }
+$("updateBar").addEventListener("click", () => location.reload());
 document.addEventListener("visibilitychange", () => {
   if (document.hidden || current === "login") return;
   render(); notifyDue(); pull();
