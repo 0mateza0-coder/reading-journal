@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>สมุดบันทึกการอ่าน</title>
   <meta name="description" content="บันทึกและสรุปการอ่าน พร้อมรอบทบทวน 1, 3, 7, 30 วัน">
-  <meta name="theme-color" content="#2f6b5e" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#141a19" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#eef0e6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#111814" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="บันทึกการอ่าน">
@@ -60,6 +60,10 @@
     <!-- หน้าแรก -->
     <section id="view-home" class="view" hidden>
       <p class="today" id="todayLabel"></p>
+      <div class="home-actions">
+        <button class="primary big" id="homeTimer">⏱ เริ่มจับเวลาอ่าน</button>
+        <button class="big" data-go="write">+ เขียนบันทึก</button>
+      </div>
       <div class="card stack migrate" id="migrateCard" hidden>
         <h2>ย้ายบันทึกเข้าบัญชี</h2>
         <p class="note" id="migrateText"></p>
@@ -77,7 +81,7 @@
         </div>
       </div>
       <div class="stats">
-        <div class="stat"><b id="sStreak">0</b><span>ครบเป้าติดกัน (วัน)<small id="sBest"></small></span></div>
+        <div class="stat"><b id="sStreak">0</b><span>วันครบเป้าติดกัน<small id="sBest"></small></span></div>
         <div class="stat"><b id="sPages">0</b><span>หน้าทั้งหมด</span></div>
         <div class="stat"><b id="sMin">0</b><span>นาทีทั้งหมด</span></div>
       </div>
@@ -95,10 +99,6 @@
         <div id="dueList" class="list"></div>
       </div>
 
-      <div class="home-actions">
-        <button class="primary big" id="homeTimer">⏱ เริ่มจับเวลาอ่าน</button>
-        <button class="big" data-go="write">+ เขียนบันทึก</button>
-      </div>
 
       <div class="list">
         <h2>ล่าสุด</h2>
@@ -224,8 +224,8 @@
     <!-- เว็บบอร์ดรีวิว: รายการ -->
     <section id="view-board" class="view" hidden>
       <div class="board-bar">
-        <label class="grow">ค้นหารีวิว<input type="search" id="bSearch" placeholder="ชื่อหนังสือ ผู้แต่ง หรือหัวข้อ"></label>
-        <label>เรียงตาม<select id="bSort"><option value="new">ล่าสุด</option><option value="top">คะแนนสูงสุด</option></select></label>
+        <label class="grow"><span class="sr">ค้นหารีวิว</span><input type="search" id="bSearch" placeholder="🔍 ค้นหาชื่อหนังสือ ผู้แต่ง หัวข้อ"></label>
+        <label><span class="sr">เรียงตาม</span><select id="bSort"><option value="new">ล่าสุด</option><option value="top">คะแนนสูงสุด</option></select></label>
       </div>
       <div class="cat-chips" id="bCats" role="group" aria-label="หมวดหมู่หนังสือ"></div>
       <button class="primary big" id="bNew">+ เขียนรีวิวหนังสือ</button>

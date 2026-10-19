@@ -351,7 +351,7 @@ function renderStats() {
   const mins = entries.reduce((s, e) => s + (+e.minutes || 0), 0);
   const { current: streak, best } = goalStreaks();
   $("sStreak").textContent = streak;
-  $("sBest").textContent = best ? `สูงสุด ${best} วัน` : "";
+  $("sBest").textContent = best ? `สูงสุด ${best}` : "";
   $("sPages").textContent = pages.toLocaleString("th-TH");
   $("sMin").textContent = mins.toLocaleString("th-TH");
 }
