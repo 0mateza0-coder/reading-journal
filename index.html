@@ -88,6 +88,7 @@
         <div class="stat"><b id="sPages">0</b><span>หน้าทั้งหมด</span></div>
         <div class="stat"><b id="sMin">0</b><span>นาทีทั้งหมด</span></div>
       </div>
+      <button class="link stats-link" data-go="stats">ดูสถิติและเป้าหมายประจำปี ›</button>
 
       <div class="card goal-today" id="goalToday">
         <div class="goal-row">
@@ -112,18 +113,24 @@
     <!-- เขียนบันทึก -->
     <section id="view-write" class="view" hidden>
       <div class="card timer" id="timerCard">
+        <div class="seg" id="timerModes" role="group" aria-label="รูปแบบการจับเวลา">
+          <button type="button" data-mode="free" aria-pressed="true">จับเวลาปกติ</button>
+          <button type="button" data-mode="pomo" aria-pressed="false">Pomodoro 25/5</button>
+        </div>
         <div class="timer-row">
           <span class="timer-time" id="timerTime" role="timer" aria-live="off">00:00</span>
           <span class="note" id="timerState">จับเวลาตอนอ่าน แล้วแอปจะใส่นาทีให้เอง</span>
         </div>
         <div class="actions">
           <button type="button" class="primary" id="timerStart">เริ่มจับเวลา</button>
+          <button type="button" id="timerSkip" hidden>ข้ามช่วงพัก อ่านต่อเลย</button>
           <button type="button" id="timerPause" hidden>หยุดชั่วคราว</button>
           <button type="button" id="timerFinish" hidden>จบการอ่าน · ใส่เวลา</button>
           <button type="button" id="timerReset" hidden>ล้างเวลา</button>
         </div>
       </div>
       <form id="f" autocomplete="off">
+        <input type="hidden" id="startedAt">
         <fieldset>
           <legend>ก่อนอ่าน</legend>
           <div class="row">
@@ -171,12 +178,67 @@
 
     <!-- คลัง -->
     <section id="view-library" class="view" hidden>
-      <div class="row filters">
-        <label>ค้นหา<input type="search" id="q" placeholder="คำในบันทึก"></label>
-        <label>หนังสือ<select id="bookFilter"><option value="">ทั้งหมด</option></select></label>
+      <div class="seg wide" id="libTabs" role="tablist" aria-label="คลัง">
+        <button type="button" role="tab" data-lib="shelf" aria-selected="true">ชั้นหนังสือ</button>
+        <button type="button" role="tab" data-lib="notes" aria-selected="false">บันทึกทั้งหมด</button>
       </div>
-      <p class="note" id="libCount"></p>
-      <div id="entries" class="list"></div>
+
+      <!-- ชั้นหนังสือ -->
+      <div id="libShelf" class="stack shelf">
+        <div class="actions">
+          <button class="primary" id="shelfAdd">+ เพิ่มหนังสือ</button>
+          <button id="shelfRandom">🎲 สุ่มเล่มถัดไปจากกองดอง</button>
+          <button class="link" data-go="stats">ดูสถิติ ›</button>
+        </div>
+        <div class="card pick" id="shelfPick" hidden></div>
+        <form id="bookForm" class="card stack" hidden novalidate>
+          <h2 id="bookFormTitle">เพิ่มหนังสือ</h2>
+          <div class="row">
+            <label>ชื่อหนังสือ<input id="bfTitle" maxlength="200" required></label>
+            <label>ผู้แต่ง<input id="bfAuthor" maxlength="200"></label>
+          </div>
+          <div class="row">
+            <label>หมวดหมู่<select id="bfCat"></select></label>
+            <label>จำนวนหน้าทั้งเล่ม<input type="number" id="bfPages" min="1" max="20000" inputmode="numeric"></label>
+            <label>สถานะ<select id="bfStatus"></select></label>
+          </div>
+          <p class="msg error" id="bfMsg" role="status"></p>
+          <div class="actions">
+            <button class="primary" type="submit">บันทึก</button>
+            <button type="button" id="bfCancel">ยกเลิก</button>
+          </div>
+        </form>
+        <div id="shelfGroups" class="stack"></div>
+      </div>
+
+      <!-- บันทึกทั้งหมด -->
+      <div id="libNotes" class="stack" hidden>
+        <div class="row filters">
+          <label>ค้นหา<input type="search" id="q" placeholder="คำในบันทึก"></label>
+          <label>หนังสือ<select id="bookFilter"><option value="">ทั้งหมด</option></select></label>
+        </div>
+        <p class="note" id="libCount"></p>
+        <div id="entries" class="list"></div>
+      </div>
+    </section>
+
+    <!-- หนังสือหนึ่งเล่ม -->
+    <section id="view-book" class="view" hidden>
+      <button class="link back" data-go="library">‹ กลับไปชั้นหนังสือ</button>
+      <article class="card book-detail" id="bdCard"></article>
+      <div class="actions" id="bdActions"></div>
+      <h2>บันทึกของเล่มนี้</h2>
+      <div class="list" id="bdEntries"></div>
+    </section>
+
+    <!-- สถิติ -->
+    <section id="view-stats" class="view" hidden>
+      <div class="card stack challenge" id="stChallenge"></div>
+      <div class="stats four" id="stYear"></div>
+      <div class="card stack" id="stSpeed"></div>
+      <div class="card stack" id="stWeeks"></div>
+      <div class="card stack" id="stCats"></div>
+      <div class="card stack" id="stTime"></div>
     </section>
 
     <!-- ปฏิทิน -->
@@ -379,5 +441,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="app.js"></script>
   <script src="board.js"></script>
+  <script src="shelf.js"></script>
 </body>
 </html>

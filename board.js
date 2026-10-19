@@ -2,17 +2,7 @@
 // เว็บบอร์ดรีวิวหนังสือ: อ่านได้ทุกคน เขียนรีวิว/ความคิดเห็นต้องล็อกอิน
 // ใช้ตัวแปรและฟังก์ชันจาก app.js: sb, mode, user, entries, $, esc, toast, go, current, showLogin
 
-const CATEGORIES = [
-  ["textbook", "หนังสือเรียน / ตำรา"],
-  ["novel", "นิยาย / วรรณกรรม"],
-  ["selfhelp", "พัฒนาตัวเอง"],
-  ["business", "ธุรกิจ / การเงิน"],
-  ["history", "ประวัติศาสตร์ / สารคดี"],
-  ["science", "วิทยาศาสตร์ / เทคโนโลยี"],
-  ["comic", "การ์ตูน / มังงะ"],
-  ["other", "อื่น ๆ"]
-];
-const catLabel = k => (CATEGORIES.find(c => c[0] === k) || [k, "อื่น ๆ"])[1];
+// CATEGORIES และ catLabel อยู่ใน app.js (ใช้ร่วมกับชั้นหนังสือ)
 const BOARD_PAGE = 20;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LIST_FIELDS = "id,title,book_title,book_author,category,rating,body,created_at,user_id,profiles(display_name),comments(count)";

@@ -303,6 +303,75 @@ a.b-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)
 .stars-input label:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* ---------- ปุ่มแบ่งส่วน (segmented) ---------- */
+.seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--field); border: 1px solid var(--line); justify-self: start; }
+.seg.wide { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; justify-self: stretch; }
+.seg button { border: 0; background: none; box-shadow: none; border-radius: 9px; padding: 7px 14px; font-size: .88rem; color: var(--muted); }
+.seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--paper); color: var(--accent); font-weight: 700; box-shadow: 0 1px 3px rgb(var(--shadow) / .15); }
+.timer.on-break { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: linear-gradient(var(--paper), var(--accent-soft)); }
+.timer.on-break .timer-time { color: var(--accent); }
+
+/* ---------- ชั้นหนังสือ ---------- */
+.shelf-group { display: grid; gap: 10px; }
+.shelf-group h2 { display: flex; align-items: center; gap: 8px; }
+.count { font-family: var(--body); font-size: .75rem; font-weight: 600; color: var(--muted); background: var(--field); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; }
+button.book-card { display: flex; gap: 12px; text-align: left; width: 100%; align-items: stretch; padding: 12px 14px 12px 12px; font: inherit; color: inherit; }
+button.book-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.book-spine { flex: 0 0 6px; border-radius: 3px; background: linear-gradient(var(--accent), var(--accent-deep)); }
+.book-main { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.book-main .bar { margin-top: 2px; }
+.chip.gold { background: var(--gold-soft); color: var(--gold); }
+.chip.quiet { background: var(--field); color: var(--muted); border: 1px solid var(--line); }
+.pick { display: grid; gap: 6px; border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); background: linear-gradient(var(--paper), color-mix(in srgb, var(--gold-soft) 50%, var(--paper))); }
+.pick h3 { margin: 0; font-family: var(--display); }
+.book-detail { display: grid; gap: 10px; }
+.mini-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 10px; }
+.mini-stats div { display: grid; gap: 2px; padding-inline: 10px; min-width: 0; }
+.mini-stats div + div { border-left: 1px solid var(--line); }
+.mini-stats b { font-family: var(--display); font-size: 1.15rem; color: var(--gold); font-variant-numeric: tabular-nums; }
+.mini-stats span { font-size: .72rem; color: var(--muted); }
+.forecast { margin: 0; background: var(--field); border-radius: 10px; padding: 10px 12px; font-size: .9rem; }
+.stats-link { justify-self: end; margin-top: -8px; font-size: .86rem; text-decoration: none; font-weight: 600; }
+
+/* ---------- สถิติ ---------- */
+.challenge { background: linear-gradient(var(--paper), color-mix(in srgb, var(--gold-soft) 40%, var(--paper))); }
+.challenge-num { margin: 0; font-size: 1rem; color: var(--muted); }
+.challenge-num b, .hero-num b { font-family: var(--display); font-size: 2.4rem; color: var(--gold); line-height: 1; font-variant-numeric: tabular-nums; }
+.hero-num { margin: 0; color: var(--muted); }
+.challenge-bar { position: relative; height: 12px; overflow: visible; }
+.challenge-bar > span { background: var(--gold); }
+.challenge-bar i { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--ink); opacity: .55; border-radius: 1px; transform: translateX(-1px); }
+.forecast-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .9rem; }
+
+/* กราฟแท่งรายสัปดาห์ */
+.wchart { position: relative; height: 170px; margin: 18px 0 22px; padding-left: 46px; }
+.wchart-grid { position: absolute; inset: 0 0 0 0; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; }
+.wchart-grid span { position: relative; height: 0; width: 100%; border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+.wchart-grid span:last-child { border-top-color: var(--line); }
+.wchart-grid em { position: absolute; left: 0; top: -15px; font-style: normal; font-size: .66rem; color: var(--muted); white-space: nowrap; }
+.wchart-goal { position: absolute; left: 46px; right: 0; bottom: var(--goal); border-top: 2px dashed color-mix(in srgb, var(--gold) 80%, transparent); pointer-events: none; z-index: 1; }
+.wchart-goal span { position: absolute; right: 0; top: -17px; font-size: .66rem; font-weight: 700; color: var(--gold); background: var(--paper); padding: 0 4px; }
+.wchart-bars { position: absolute; left: 46px; right: 0; top: 0; bottom: 0; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 2px; }
+.wbar { position: relative; height: 100%; border: 0; background: none; box-shadow: none; padding: 0 22%; border-radius: 0; display: flex; align-items: flex-end; }
+.wbar:active { transform: none; }
+.wbar-fill { display: block; width: 100%; min-height: 2px; background: color-mix(in srgb, var(--accent) 55%, var(--paper)); border-radius: 4px 4px 0 0; transition: height .35s ease; }
+.wbar.met .wbar-fill { background: var(--accent); }
+.wbar.sel:not(.zero) .wbar-fill { box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--gold); }
+.wbar.zero .wbar-fill { background: var(--line); }
+.wbar-x { position: absolute; left: 50%; bottom: -19px; transform: translateX(-50%); font-size: .62rem; color: var(--muted); white-space: nowrap; }
+.wbar.sel .wbar-x { color: var(--ink); font-weight: 700; }
+.wchart-readout { margin: 0; font-size: .9rem; }
+
+/* แถบแนวนอน: หมวดหมู่ / ช่วงเวลา */
+.hbars { display: grid; gap: 8px; }
+.hbar { display: grid; grid-template-columns: minmax(0, 9.5em) 1fr auto; align-items: center; gap: 10px; font-size: .86rem; }
+.hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { height: 10px; background: var(--field); border-radius: 0 4px 4px 0; overflow: hidden; }
+.hbar-fill { display: block; height: 100%; background: color-mix(in srgb, var(--accent) 55%, var(--paper)); border-radius: 0 4px 4px 0; }
+.hbar-fill.top { background: var(--accent); }
+.hbar-val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; min-width: 3.2em; }
+.hbar-val small { display: block; font-weight: 400; font-size: .7rem; color: var(--muted); }
+
 /* ---------- แถบเมนูล่าง ---------- */
 .tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;

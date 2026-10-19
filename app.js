@@ -6,13 +6,26 @@ const STORAGE_KEY = "reading-journal-entries";
 const NOTIFIED_KEY = "reading-journal-notified";
 const FIELDS = ["date", "book", "chapter", "pFrom", "pTo", "minutes", "goal", "k1", "k2", "k3", "summary", "questions", "apply", "quote"];
 const NUMERIC = ["pFrom", "pTo", "minutes"];
+// หมวดหมู่หนังสือ ใช้ทั้งชั้นหนังสือ สถิติ และเว็บบอร์ด
+const CATEGORIES = [
+  ["textbook", "หนังสือเรียน / ตำรา"],
+  ["novel", "นิยาย / วรรณกรรม"],
+  ["selfhelp", "พัฒนาตัวเอง"],
+  ["business", "ธุรกิจ / การเงิน"],
+  ["history", "ประวัติศาสตร์ / สารคดี"],
+  ["science", "วิทยาศาสตร์ / เทคโนโลยี"],
+  ["comic", "การ์ตูน / มังงะ"],
+  ["other", "อื่น ๆ"]
+];
+const catLabel = k => (CATEGORIES.find(c => c[0] === k) || [k, "อื่น ๆ"])[1];
 const TITLES = {
   login: "สมุดบันทึกการอ่าน", home: "สมุดบันทึกการอ่าน", write: "บันทึกวันนี้", calendar: "ปฏิทินการอ่าน",
   library: "คลังบันทึก", review: "ทบทวน", settings: "ตั้งค่า",
-  board: "เว็บบอร์ดรีวิว", post: "รีวิวหนังสือ", compose: "เขียนรีวิว"
+  board: "เว็บบอร์ดรีวิว", post: "รีวิวหนังสือ", compose: "เขียนรีวิว",
+  book: "หนังสือ", stats: "สถิติการอ่าน"
 };
 // หน้าย่อยที่ให้ไฮไลต์แท็บไหนในแถบเมนู
-const TAB_OF = { post: "board", compose: "board", review: "home" };
+const TAB_OF = { post: "board", compose: "board", review: "home", book: "library", stats: "home" };
 
 const $ = id => document.getElementById(id);
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -88,6 +101,7 @@ function queue(kind, id) {
 }
 
 let syncing = false, syncError = false;
+let serverSynced = false; // โหลดข้อมูลจากบัญชีครบแล้วหรือยัง (กันไม่ให้เครื่องใหม่เขียนทับชั้นหนังสือบนบัญชี)
 function setSync() {
   const el = $("syncState");
   if (mode !== "account") { el.textContent = ""; return; }
@@ -104,7 +118,11 @@ async function flush() {
   syncing = true; setSync();
   try {
     if (sendGoal) {
-      const { error } = await sb.from("settings").upsert({ data: { goal: getGoal() }, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+      // รวมชั้นหนังสือกับของบนบัญชีก่อนส่ง กันเครื่องหนึ่งเขียนทับอีกเครื่อง
+      const cur = await sb.from("settings").select("data").maybeSingle();
+      if (cur.error) throw cur.error;
+      if (Array.isArray(cur.data?.data?.books)) lsSet(booksKey(), mergeBooks(cur.data.data.books, getAllBooks()));
+      const { error } = await sb.from("settings").upsert({ data: settingsPayload(), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
       if (error) throw error;
       lsDel(goalPendingKey());
     }
@@ -143,10 +161,10 @@ async function pull() {
   if (error) { syncError = true; setSync(); return; }
   entries = data.map(r => ({ ...r.data, id: r.id }));
   persist();
+  serverSynced = true;
   if (!goalPending()) {
     const s = await sb.from("settings").select("data").maybeSingle();
-    const g = s.data?.data?.goal;
-    if (!s.error && g && Number.isFinite(+g.minutes) && Array.isArray(g.days)) lsSet(goalKey(), { minutes: +g.minutes, days: g.days });
+    if (!s.error && s.data?.data) applySettingsFromServer(s.data.data);
   }
   syncError = false; setSync();
   render();
@@ -251,6 +269,7 @@ function enterGuest() {
 
 function enterAccount(u) {
   mode = "account";
+  serverSynced = false;
   user = { id: u.id, email: u.email };
   lsSet(LAST_USER_KEY, user);
   lsDel(GUEST_CHOSEN_KEY);
@@ -272,7 +291,7 @@ $("signOutBtn").addEventListener("click", async () => {
   }
   try { await sb?.auth.signOut(); } catch {}
   // ลบสำเนาในเครื่อง เพื่อไม่ให้คนอื่นที่ใช้เครื่องนี้เห็น
-  lsDel(cacheKey()); lsDel(pendingKey()); lsDel(goalKey()); lsDel(goalPendingKey()); lsDel(LAST_USER_KEY);
+  lsDel(cacheKey()); lsDel(pendingKey()); lsDel(goalKey()); lsDel(goalPendingKey()); lsDel(booksKey()); lsDel(yearGoalKey()); lsDel(LAST_USER_KEY);
   entries = []; user = null; mode = "guest";
   setSync();
   showLogin();
@@ -290,6 +309,13 @@ $("migrateBtn").addEventListener("click", () => {
   const list = guestEntries();
   for (const e of list) if (!entries.some(x => x.id === e.id)) upsert({ ...e });
   lsDel(STORAGE_KEY);
+  // หนังสือในชั้นที่สร้างไว้ก่อนล็อกอิน ย้ายตามไปด้วย
+  const guestBooks = lsGet("reading-journal-books", []);
+  if (guestBooks.length) {
+    saveBooks(mergeBooks(getAllBooks(), guestBooks));
+    lsDel("reading-journal-books");
+  }
+  for (const e of entries) ensureBookFor(e);
   toast(`ย้าย ${list.length} บันทึกเข้าบัญชีแล้ว`);
   render();
 });
@@ -406,6 +432,81 @@ function describeGoal(g) {
   return `เป้าหมาย: อ่านวันละ ${g.minutes} นาที · ${days}`;
 }
 
+// ---------- ชั้นหนังสือ + เป้าหมายประจำปี (ข้อมูล) ----------
+// หนังสือเก็บแยกจากบันทึก แล้วจับคู่กับบันทึกด้วยชื่อหนังสือ
+// ล็อกอินอยู่: ซิงก์ไปพร้อมเป้าหมายรายวันในตาราง settings
+const STATUSES = [["reading", "กำลังอ่าน"], ["want", "อยากอ่าน"], ["done", "อ่านจบแล้ว"]];
+const booksKey = () => mode === "account" ? `reading-journal-books:${user.id}` : "reading-journal-books";
+const yearGoalKey = () => mode === "account" ? `reading-journal-year-goal:${user.id}` : "reading-journal-year-goal";
+const normTitle = s => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+// เก็บหนังสือที่ลบไว้เป็นเครื่องหมาย deleted เพื่อไม่ให้เครื่องอื่นซิงก์กลับมา
+const getAllBooks = () => lsGet(booksKey(), []);
+const getBooks = () => getAllBooks().filter(b => !b.deleted);
+// รวมรายการหนังสือจากสองแหล่ง: id เดียวกันใช้ฉบับที่แก้ล่าสุด ชื่อซ้ำกันเก็บไว้เล่มเดียว
+function mergeBooks(a, b) {
+  const byId = new Map();
+  for (const x of [...(a || []), ...(b || [])]) {
+    if (!x || typeof x.id !== "string" || typeof x.title !== "string") continue;
+    const cur = byId.get(x.id);
+    if (!cur || (x.updatedAt || "") > (cur.updatedAt || "")) byId.set(x.id, x);
+  }
+  const out = [], seen = new Map();
+  for (const x of [...byId.values()].sort((p, q) => (p.createdAt || "").localeCompare(q.createdAt || ""))) {
+    if (x.deleted) { out.push(x); continue; }
+    const k = normTitle(x.title), keep = seen.get(k);
+    if (!keep) { seen.set(k, x); out.push(x); continue; }
+    // ชื่อซ้ำ: เติมข้อมูลที่ขาดให้เล่มแรก แล้วทำเครื่องหมายเล่มหลังว่าลบ
+    for (const f of ["author", "category", "totalPages", "finishedAt"]) if (!keep[f] && x[f]) keep[f] = x[f];
+    out.push({ id: x.id, title: x.title, deleted: true, updatedAt: new Date().toISOString() });
+  }
+  return out;
+}
+const getYearGoal = () => lsGet(yearGoalKey(), { books: 12 });
+const findBook = title => getBooks().find(b => normTitle(b.title) === normTitle(title));
+const entriesOfBook = b => entries.filter(e => normTitle(e.book) === normTitle(b.title));
+
+function markSettingsDirty() {
+  if (mode === "account") { lsSet(goalPendingKey(), true); flush(); }
+}
+function saveBooks(list) {
+  lsSet(booksKey(), list);
+  markSettingsDirty();
+}
+function upsertBook(book) {
+  const list = getAllBooks();
+  const i = list.findIndex(b => b.id === book.id);
+  book.updatedAt = new Date().toISOString();
+  if (i >= 0) list[i] = book; else list.push(book);
+  saveBooks(list);
+  return book;
+}
+function newBook(fields) {
+  return { id: "b" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title: "", author: "", category: "",
+    totalPages: null, status: "want", startedAt: null, finishedAt: null, createdAt: new Date().toISOString(), ...fields };
+}
+// บันทึกการอ่านเล่มไหนแล้ว ให้เล่มนั้นอยู่ในชั้น "กำลังอ่าน" (ถ้ายังไม่มี จะสร้างให้)
+function ensureBookFor(entry) {
+  if (!entry.book) return null;
+  const b = findBook(entry.book);
+  if (!b) return upsertBook(newBook({ title: entry.book.trim(), status: "reading", startedAt: entry.date }));
+  if (b.status === "want") return upsertBook({ ...b, status: "reading", startedAt: b.startedAt || entry.date });
+  if (!b.startedAt || entry.date < b.startedAt) return upsertBook({ ...b, startedAt: entry.date });
+  return b;
+}
+// หน้าที่อ่านถึง: เลขหน้าสูงสุดที่บันทึกไว้ (ถ้าไม่มีเลขหน้า ใช้ผลรวมจำนวนหน้า)
+function pagesReadOf(b) {
+  const list = entriesOfBook(b);
+  const maxTo = Math.max(0, ...list.map(e => +e.pTo || 0));
+  return maxTo || list.reduce((s, e) => s + pagesOf(e), 0);
+}
+function settingsPayload() { return { goal: getGoal(), books: getAllBooks(), yearGoal: getYearGoal() }; }
+function applySettingsFromServer(d) {
+  const g = d?.goal;
+  if (g && Number.isFinite(+g.minutes) && Array.isArray(g.days)) lsSet(goalKey(), { minutes: +g.minutes, days: g.days });
+  if (Array.isArray(d?.books)) lsSet(booksKey(), mergeBooks(getAllBooks(), d.books));
+  if (d?.yearGoal && +d.yearGoal.books >= 1) lsSet(yearGoalKey(), { books: Math.round(+d.yearGoal.books) });
+}
+
 // นับวันที่ครบเป้าติดกัน: ข้ามวันพัก (วันที่ไม่ได้ตั้งใจอ่าน) และไม่ตัดสถิติเพราะวันนี้ที่ยังไม่จบวัน
 function goalStreaks() {
   const g = getGoal();
@@ -455,7 +556,7 @@ $("goalForm").addEventListener("submit", ev => {
   if (!(minutes >= 1 && minutes <= 600)) { $("goalMsg").textContent = "ใส่จำนวนนาทีระหว่าง 1 ถึง 600"; return; }
   if (!days.length) { $("goalMsg").textContent = "เลือกอย่างน้อย 1 วัน"; return; }
   lsSet(goalKey(), { minutes, days });
-  if (mode === "account") { lsSet(goalPendingKey(), true); flush(); }
+  markSettingsDirty();
   closeGoalForm();
   toast("บันทึกเป้าหมายแล้ว");
   render();
@@ -548,7 +649,9 @@ $("calNext").addEventListener("click", () => { calMonth = shiftMonth(calMonth, 1
 $("calToday").addEventListener("click", () => { calSelected = todayStr(); calMonth = calSelected.slice(0, 7); renderCalendar(); });
 
 function renderBookList() {
-  $("bookList").innerHTML = [...new Set(entries.map(e => e.book))].map(b => `<option value="${esc(b)}">`).join("");
+  const shelf = getBooks().filter(b => b.status !== "done").sort((x, y) => (x.status === "reading" ? 0 : 1) - (y.status === "reading" ? 0 : 1)).map(b => b.title);
+  const titles = [...new Set([...shelf, ...entries.map(e => e.book)].filter(Boolean))];
+  $("bookList").innerHTML = titles.map(b => `<option value="${esc(b)}">`).join("");
 }
 
 function renderAccount() {
@@ -571,6 +674,7 @@ function render() {
   if (current === "write") renderBookList();
   if (current === "settings") { renderNotifState(); renderAccount(); renderPersist(); $("backupMsg").textContent = lastBackupText(); }
   if (typeof onBoardRender === "function") onBoardRender(current);
+  if (typeof onShelfRender === "function") onShelfRender(current);
   renderTimer();
   updateBadge();
 }
@@ -585,6 +689,7 @@ for (let i = 1; i <= 5; i++) {
 
 function resetForm() {
   $("f").reset();
+  $("startedAt").value = ""; // ช่องซ่อนไม่ถูกล้างด้วย reset()
   editingId = null;
   $("date").value = todayStr();
   $("saveBtn").textContent = "บันทึก";
@@ -617,9 +722,11 @@ $("f").addEventListener("submit", ev => {
   const r = document.querySelector('input[name="rating"]:checked');
   e.rating = r ? +r.value : null;
   e.recall = $("recall").checked;
+  if ($("startedAt").value) e.startedAt = $("startedAt").value;
   if (!prev) e.nextReview = addDays(e.date, INTERVALS[0]);
   const wasMet = goalMet(minutesOn(e.date));
   if (!upsert(e)) return;
+  ensureBookFor(e);
   const nowMet = goalMet(minutesOn(e.date));
   toast(!wasMet && nowMet ? `ครบเป้า ${getGoal().minutes} นาทีของ${e.date === todayStr() ? "วันนี้" : "วันนั้น"}แล้ว ✓`
     : prev ? "แก้ไขแล้ว" : "บันทึกแล้ว ทบทวนครั้งแรก " + fmt(e.nextReview));
@@ -704,7 +811,7 @@ const BACKUP_EVERY_DAYS = 7;
 const daysBetween = (a, b) => Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000);
 
 function exportBackup() {
-  const data = { app: "reading-journal", version: 2, exported: new Date().toISOString(), goal: getGoal(), entries };
+  const data = { app: "reading-journal", version: 3, exported: new Date().toISOString(), goal: getGoal(), yearGoal: getYearGoal(), books: getBooks(), entries };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -757,10 +864,21 @@ $("importFile").addEventListener("change", async ev => {
     const g = data.goal;
     if (g && Number.isFinite(+g.minutes) && +g.minutes >= 1 && Array.isArray(g.days) && g.days.length) {
       lsSet(goalKey(), { minutes: Math.round(+g.minutes), days: g.days.filter(d => Number.isInteger(d) && d >= 0 && d <= 6) });
-      if (mode === "account") { lsSet(goalPendingKey(), true); flush(); }
     }
+    if (data.yearGoal && +data.yearGoal.books >= 1) lsSet(yearGoalKey(), { books: Math.round(+data.yearGoal.books) });
+    let booksAdded = 0;
+    if (Array.isArray(data.books)) {
+      const list = getAllBooks();
+      for (const b of data.books) {
+        if (!b || typeof b.id !== "string" || typeof b.title !== "string" || !b.title.trim()) continue;
+        const i = list.findIndex(x => x.id === b.id || normTitle(x.title) === normTitle(b.title));
+        if (i >= 0) list[i] = { ...list[i], ...b, id: list[i].id }; else { list.push(b); booksAdded++; }
+      }
+      lsSet(booksKey(), list);
+    }
+    markSettingsDirty();
     render();
-    $("backupMsg").textContent = `นำเข้าแล้ว เพิ่มใหม่ ${added} บันทึก${g ? " และเป้าหมายการอ่าน" : ""}`;
+    $("backupMsg").textContent = `นำเข้าแล้ว เพิ่มบันทึกใหม่ ${added} รายการ${booksAdded ? ` หนังสือ ${booksAdded} เล่ม` : ""}${g ? " และเป้าหมายการอ่าน" : ""}`;
   } catch {
     $("backupMsg").textContent = "ไฟล์นี้ไม่ใช่ไฟล์สำรองของแอปนี้ ลองเลือกไฟล์ .json ที่ส่งออกจากหน้านี้";
   }
@@ -814,56 +932,137 @@ $("installBtn").addEventListener("click", async () => {
 });
 if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) $("installCard").hidden = true;
 
-// ---------- ตัวจับเวลาอ่าน ----------
+// ---------- ตัวจับเวลาอ่าน (ปกติ / Pomodoro) ----------
 // เก็บเป็นเวลาเริ่ม + เวลาสะสม จึงนับต่อได้แม้ปิดหน้าจอหรือปิดแอป
+// Pomodoro: อ่าน 25 นาที → พัก 5 นาที → กดเริ่มรอบถัดไปเอง นับเฉพาะเวลาที่อ่านเป็นนาทีอ่าน
 const TIMER_KEY = "reading-journal-timer";
-const getTimer = () => lsGet(TIMER_KEY, { acc: 0, start: null });
+const TIMER_MODE_KEY = "reading-journal-timer-mode";
+const POMO_FOCUS = 25 * 60000, POMO_BREAK = 5 * 60000;
+const blankTimer = () => ({ acc: 0, start: null, mode: lsGet(TIMER_MODE_KEY, "free"), phase: "focus", phaseAcc: 0, breakEnd: null, rounds: 0, firstStart: null });
+const getTimer = () => ({ ...blankTimer(), ...lsGet(TIMER_KEY, {}) });
 const timerMs = (t = getTimer()) => t.acc + (t.start ? Date.now() - t.start : 0);
+const isIdle = t => !t.start && t.acc === 0 && t.phase === "focus" && !t.rounds;
 const fmtTimer = ms => {
-  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
+  const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, sec = s % 60;
   const mm = String(m).padStart(2, "0"), ss = String(sec).padStart(2, "0");
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 };
-let timerTick = null, resetArmed = null;
+let timerTick = null, resetArmed = null, audioCtx = null;
+
+// เลื่อนสถานะ Pomodoro ตามเวลาจริง (ใช้ได้แม้ปิดแอปไปนาน) คืนค่าเหตุการณ์ล่าสุดที่เกิด
+function advanceTimer(t) {
+  let event = null;
+  for (let guard = 0; guard < 4 && t.mode === "pomo"; guard++) {
+    if (t.phase === "focus" && t.start && t.phaseAcc + (Date.now() - t.start) >= POMO_FOCUS) {
+      const endAt = t.start + (POMO_FOCUS - t.phaseAcc);
+      t.acc += POMO_FOCUS - t.phaseAcc;
+      t.start = null; t.phaseAcc = 0; t.phase = "break"; t.breakEnd = endAt + POMO_BREAK; t.rounds++;
+      event = "focusDone";
+    } else if (t.phase === "break" && Date.now() >= t.breakEnd) {
+      t.phase = "ready"; t.breakEnd = null;
+      event = "breakDone";
+    } else break;
+  }
+  return event;
+}
+
+function chime() {
+  try {
+    if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.([180, 80, 180]);
+    if (!audioCtx) return;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = 660; o.connect(g); g.connect(audioCtx.destination);
+    g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.9);
+    o.start(); o.stop(audioCtx.currentTime + 0.95);
+  } catch {}
+}
+async function timerNotify(title, body) {
+  chime();
+  toast(body);
+  if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+    try { (await navigator.serviceWorker.ready).showNotification(title, { body, icon: "icons/icon-192.png", tag: "pomodoro" }); } catch {}
+  }
+}
 
 function renderTimer() {
-  const t = getTimer(), ms = timerMs(t), running = !!t.start, idle = !running && ms === 0;
-  const text = fmtTimer(ms);
-  $("timerTime").textContent = text;
-  $("timerMiniTime").textContent = text;
+  const t = getTimer();
+  const event = advanceTimer(t);
+  if (event) {
+    lsSet(TIMER_KEY, t);
+    if (event === "focusDone") timerNotify("ครบ 25 นาทีแล้ว", `อ่านครบรอบที่ ${t.rounds} แล้ว พักสายตา 5 นาทีนะ`);
+    else timerNotify("พักครบแล้ว", "พักครบ 5 นาทีแล้ว พร้อมอ่านรอบถัดไป");
+  }
+  const pomo = t.mode === "pomo", running = !!t.start, onBreak = pomo && t.phase === "break";
+  const ms = timerMs(t), idle = isIdle(t);
+  const big = !pomo ? fmtTimer(ms)
+    : onBreak ? fmtTimer(t.breakEnd - Date.now())
+    : t.phase === "ready" ? fmtTimer(POMO_FOCUS)
+    : fmtTimer(POMO_FOCUS - (t.phaseAcc + (running ? Date.now() - t.start : 0)));
+  $("timerTime").textContent = big;
+  $("timerMiniTime").textContent = onBreak ? `พัก ${big}` : big;
   $("timerCard").classList.toggle("running", running);
-  $("timerStart").hidden = running;
-  $("timerStart").textContent = idle ? "เริ่มจับเวลา" : "อ่านต่อ";
+  $("timerCard").classList.toggle("on-break", onBreak);
+  $("timerModes").hidden = !idle;
+  document.querySelectorAll("#timerModes button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === t.mode)));
+  $("timerStart").hidden = running || onBreak;
+  $("timerStart").textContent = idle ? (pomo ? "เริ่มรอบที่ 1" : "เริ่มจับเวลา") : t.phase === "ready" ? `เริ่มรอบที่ ${t.rounds + 1}` : "อ่านต่อ";
+  $("timerSkip").hidden = !onBreak;
   $("timerPause").hidden = !running;
-  $("timerFinish").hidden = idle;
+  $("timerFinish").hidden = idle || ms === 0;
   $("timerReset").hidden = running || idle;
   if (!resetArmed) $("timerReset").textContent = "ล้างเวลา";
-  $("timerState").textContent = running ? "กำลังอ่าน… ปิดหน้าจอได้ เวลายังนับต่อ"
-    : idle ? "จับเวลาตอนอ่าน แล้วแอปจะใส่นาทีให้เอง" : "หยุดชั่วคราว";
-  const showMini = running && current !== "write" && current !== "login";
+  $("timerState").textContent = !pomo
+    ? (running ? "กำลังอ่าน… ปิดหน้าจอได้ เวลายังนับต่อ" : idle ? "จับเวลาตอนอ่าน แล้วแอปจะใส่นาทีให้เอง" : "หยุดชั่วคราว")
+    : idle ? "อ่าน 25 นาที แล้วพัก 5 นาที แอปจะเตือนเมื่อครบเวลา"
+    : onBreak ? `พักสายตา ลุกยืดเส้นยืดสาย · อ่านแล้วรวม ${fmtTimer(ms)}`
+    : t.phase === "ready" ? `พักครบแล้ว · อ่านแล้วรวม ${fmtTimer(ms)} (${t.rounds} รอบ)`
+    : `${running ? "กำลังอ่าน" : "หยุดชั่วคราว"} รอบที่ ${t.rounds + 1} · อ่านแล้วรวม ${fmtTimer(ms)}`;
+  const showMini = (running || onBreak) && current !== "write" && current !== "login";
   $("timerMini").hidden = !showMini;
   document.body.classList.toggle("timing", showMini);
-  $("homeTimer").textContent = running ? `⏱ ${text} กำลังอ่าน` : idle ? "⏱ เริ่มจับเวลาอ่าน" : `⏱ ${text} หยุดอยู่`;
+  $("homeTimer").textContent = onBreak ? `☕ พัก ${big}` : running ? `⏱ ${big} กำลังอ่าน` : idle ? "⏱ เริ่มจับเวลาอ่าน" : `⏱ ${pomo ? fmtTimer(ms) : big} หยุดอยู่`;
   clearInterval(timerTick);
-  timerTick = running ? setInterval(renderTimer, 1000) : null;
+  timerTick = running || onBreak ? setInterval(renderTimer, 1000) : null;
 }
 function timerStart() {
+  try { audioCtx ||= new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume?.(); } catch {}
   const t = getTimer();
-  if (!t.start) { t.start = Date.now(); lsSet(TIMER_KEY, t); }
+  if (!t.start) {
+    t.start = Date.now();
+    t.firstStart ||= t.start;
+    if (t.phase !== "focus") { t.phase = "focus"; t.phaseAcc = 0; t.breakEnd = null; }
+    lsSet(TIMER_KEY, t);
+  }
+  renderTimer();
+}
+function timerPause() {
+  const t = getTimer();
+  advanceTimer(t);
+  if (t.start) { const run = Date.now() - t.start; t.acc += run; if (t.mode === "pomo") t.phaseAcc += run; t.start = null; }
+  lsSet(TIMER_KEY, t);
   renderTimer();
 }
 $("timerStart").addEventListener("click", timerStart);
-$("timerPause").addEventListener("click", () => {
-  const t = getTimer();
-  if (t.start) lsSet(TIMER_KEY, { acc: timerMs(t), start: null });
+$("timerSkip").addEventListener("click", timerStart);
+$("timerPause").addEventListener("click", timerPause);
+$("timerModes").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-mode]");
+  if (!b) return;
+  lsSet(TIMER_MODE_KEY, b.dataset.mode);
+  lsSet(TIMER_KEY, { ...blankTimer(), mode: b.dataset.mode });
   renderTimer();
 });
 $("timerFinish").addEventListener("click", () => {
-  const mins = Math.max(1, Math.round(timerMs() / 60000));
+  const t = getTimer();
+  advanceTimer(t);
+  const mins = Math.max(1, Math.round(timerMs(t) / 60000));
   $("minutes").value = (+$("minutes").value || 0) + mins;
+  if (t.firstStart && !$("startedAt").value) $("startedAt").value = new Date(t.firstStart).toISOString();
   lsDel(TIMER_KEY);
   renderTimer();
-  toast(`ใส่เวลา ${mins} นาทีแล้ว เขียนสรุปต่อได้เลย`);
+  toast(`ใส่เวลา ${mins} นาทีแล้ว${t.mode === "pomo" && t.rounds ? ` (${t.rounds} รอบ Pomodoro)` : ""} เขียนสรุปต่อได้เลย`);
   $("minutes").scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 });
 $("timerReset").addEventListener("click", () => {
@@ -873,11 +1072,11 @@ $("timerReset").addEventListener("click", () => {
     return;
   }
   clearTimeout(resetArmed); resetArmed = null;
-  lsDel(TIMER_KEY);
+  lsSet(TIMER_KEY, blankTimer());
   renderTimer();
 });
 $("homeTimer").addEventListener("click", () => {
-  if (!getTimer().start && timerMs() === 0) timerStart();
+  if (isIdle(getTimer())) timerStart();
   go("write");
 });
 
