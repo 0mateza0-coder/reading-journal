@@ -5,10 +5,37 @@
 // CATEGORIES และ catLabel อยู่ใน app.js (ใช้ร่วมกับชั้นหนังสือ)
 const BOARD_PAGE = 20;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const LIST_FIELDS = "id,title,book_title,book_author,category,rating,body,created_at,user_id,profiles(display_name),comments(count)";
+const LIST_FIELDS = "id,title,book_title,book_author,category,rating,body,images,created_at,user_id,profiles(display_name),comments(count)";
+
+// ---------- รูปภาพ (Supabase Storage) ----------
+const IMG_BUCKET = "review-images";
+const IMG_MAX = 4, IMG_SIDE = 1600, IMG_BYTES = 2 * 1024 * 1024;
+const imgUrl = path => sb.storage.from(IMG_BUCKET).getPublicUrl(path).data.publicUrl;
+// ย่อรูปบนเครื่องก่อนอัปโหลด: ด้านยาวไม่เกิน 1600px แปลงเป็น JPEG ให้ไฟล์ไม่เกิน 2 MB
+async function compressImage(file) {
+  if (!file.type.startsWith("image/")) throw new Error("type");
+  if (file.size > 25 * 1024 * 1024) throw new Error("big");
+  const src = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = src; });
+    const k = Math.min(1, IMG_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); // รูปโปร่งใส (PNG) จะได้พื้นขาว ไม่ใช่พื้นดำ
+    ctx.drawImage(img, 0, 0, w, h);
+    for (const q of [0.82, 0.7, 0.55]) {
+      const blob = await new Promise(ok => cv.toBlob(ok, "image/jpeg", q));
+      if (blob && blob.size <= IMG_BYTES) return blob;
+    }
+    throw new Error("big");
+  } catch (err) {
+    throw err?.message === "big" || err?.message === "type" ? err : new Error("decode");
+  } finally { URL.revokeObjectURL(src); }
+}
 
 const board = { cat: "", sort: "new", q: "", items: [], done: false, loading: false, req: 0, fetchedAt: 0, key: null };
-const compose = { ready: false, editing: null };
+const compose = { ready: false, editing: null, images: [] }; // images: [{ path } | { blob, preview }]
 let myProfile = null; // { uid, name, admin }
 let openPostId = null;
 const armed = {};     // ปุ่มที่ต้องแตะสองครั้ง (ลบ/รายงาน)
@@ -76,7 +103,9 @@ function renderCats() {
 function reviewCard(r) {
   const n = r.comments?.[0]?.count ?? 0;
   const excerpt = r.body.length > 140 ? r.body.slice(0, 140).trim() + "…" : r.body;
-  return `<a class="entry b-card" href="#post/${esc(r.id)}">
+  const cover = r.images?.[0];
+  return `<a class="entry b-card${cover ? " has-cover" : ""}" href="#post/${esc(r.id)}">
+    ${cover ? `<img class="b-cover" src="${esc(imgUrl(cover))}" alt="ภาพปก ${esc(r.book_title)}" loading="lazy" decoding="async">` : ""}
     <div class="entry-head"><span class="chip">${esc(catLabel(r.category))}</span><span class="stars" aria-label="${r.rating} จาก 5 ดาว">${starText(r.rating)}</span></div>
     <h3>${esc(r.title)}</h3>
     <p class="book">📖 ${esc(r.book_title)}${r.book_author ? ` · ${esc(r.book_author)}` : ""}</p>
@@ -182,6 +211,8 @@ function renderPost() {
     <h2 class="post-title">${esc(r.title)}</h2>
     <p class="book">📖 ${esc(r.book_title)}${r.book_author ? ` · ${esc(r.book_author)}` : ""}</p>
     <p class="meta">โดย ${esc(nameOf(r))} · ${esc(relTime(r.created_at))}${edited ? " · แก้ไขแล้ว" : ""}</p>
+    ${r.images?.length ? `<div class="gallery n${r.images.length}">${r.images.map((p, i) =>
+      `<button type="button" class="g-img" data-zoom="${esc(imgUrl(p))}" aria-label="ดูรูปที่ ${i + 1} ขนาดใหญ่"><img src="${esc(imgUrl(p))}" alt="รูปประกอบรีวิว ${esc(r.book_title)} ${i + 1}" loading="lazy" decoding="async"></button>`).join("")}</div>` : ""}
     <div class="post-body">${esc(r.body)}</div>`;
   const mine = signedIn() && r.user_id === user.id;
   const admin = !!myProfile?.admin;
@@ -262,6 +293,7 @@ document.addEventListener("click", async ev => {
     if (!confirmTap(t, "post", "แตะอีกครั้งเพื่อลบ")) return;
     const { error } = await sb.from("reviews").delete().eq("id", postData.id);
     if (error) { toast(boardError(error)); return; }
+    if (postData.images?.length) sb.storage.from(IMG_BUCKET).remove(postData.images).catch(() => {});
     toast("ลบรีวิวแล้ว");
     postData = null; openPostId = null;
     board.fetchedAt = 0;
@@ -301,6 +333,9 @@ function startCompose(review) {
   $("cTitle").value = review?.title || "";
   $("cBody").value = review?.body || "";
   if (review) $("cR" + review.rating).checked = true;
+  clearComposeImages();
+  compose.images = (review?.images || []).map(path => ({ path }));
+  renderComposeImages();
   $("cMsg").textContent = "";
   $("cNameWrap").hidden = !!myProfile?.name;
   $("cSubmit").textContent = review ? "บันทึกการแก้ไข" : "โพสต์รีวิว";
@@ -364,16 +399,39 @@ $("cForm").addEventListener("submit", async ev => {
       if (!$("cName").value.trim()) { msg("ตั้งชื่อที่แสดงก่อน"); return; }
       await saveProfileName($("cName").value);
     }
+    // อัปโหลดรูปใหม่ก่อน แล้วค่อยบันทึกรีวิว ถ้าบันทึกไม่สำเร็จ ลบรูปที่เพิ่งอัปโหลดทิ้ง
+    const uploaded = [];
     let id;
-    if (compose.editing) {
-      id = compose.editing.id;
-      const { error } = await sb.from("reviews").update({ ...v, updated_at: new Date().toISOString() }).eq("id", id);
-      if (error) throw error;
-    } else {
-      const { data, error } = await sb.from("reviews").insert(v).select("id").single();
-      if (error) throw error;
-      id = data.id;
+    try {
+      for (const im of compose.images) {
+        if (im.path) continue;
+        msg(`กำลังอัปโหลดรูป ${uploaded.length + 1}/${compose.images.filter(x => !x.path).length}…`);
+        const path = `${user.id}/${crypto.randomUUID()}.jpg`;
+        const { error } = await sb.storage.from(IMG_BUCKET).upload(path, im.blob, { contentType: "image/jpeg", cacheControl: "31536000", upsert: false });
+        if (error) throw error;
+        im.path = path; uploaded.push(path);
+      }
+      msg("");
+      v.images = compose.images.map(im => im.path);
+      if (compose.editing) {
+        id = compose.editing.id;
+        const { error } = await sb.from("reviews").update({ ...v, updated_at: new Date().toISOString() }).eq("id", id);
+        if (error) throw error;
+        const removed = (compose.editing.images || []).filter(p => !v.images.includes(p));
+        if (removed.length) sb.storage.from(IMG_BUCKET).remove(removed).catch(() => {});
+      } else {
+        const { data, error } = await sb.from("reviews").insert(v).select("id").single();
+        if (error) throw error;
+        id = data.id;
+      }
+    } catch (err) {
+      if (uploaded.length) {
+        sb.storage.from(IMG_BUCKET).remove(uploaded).catch(() => {});
+        for (const im of compose.images) if (uploaded.includes(im.path)) delete im.path;
+      }
+      throw err;
     }
+    clearComposeImages();
     toast(compose.editing ? "บันทึกการแก้ไขแล้ว" : "โพสต์รีวิวแล้ว");
     compose.ready = false; compose.editing = null;
     $("cForm").reset();
@@ -385,10 +443,69 @@ $("cForm").addEventListener("submit", async ev => {
 });
 $("cCancel").addEventListener("click", () => {
   const back = compose.editing?.id;
+  clearComposeImages();
   compose.ready = false; compose.editing = null;
   $("cForm").reset();
   if (back) openPost(back); else go("board");
 });
+
+// ---------- เลือกรูป + ดูรูปขนาดใหญ่ ----------
+function clearComposeImages() {
+  for (const im of compose.images) if (im.preview) URL.revokeObjectURL(im.preview);
+  compose.images = [];
+  $("cImgMsg").textContent = "";
+}
+function renderComposeImages() {
+  $("cImages").innerHTML = compose.images.map((im, i) => `
+    <div class="img-tile${i === 0 ? " is-cover" : ""}">
+      <img src="${esc(im.preview || imgUrl(im.path))}" alt="รูปที่ ${i + 1}">
+      ${i === 0 ? `<span class="img-badge">ภาพปก</span>` : `<button type="button" class="img-act" data-img-cover="${i}">ใช้เป็นปก</button>`}
+      <button type="button" class="img-del" data-img-del="${i}" aria-label="ลบรูปที่ ${i + 1}">✕</button>
+    </div>`).join("");
+  $("cImgAdd").hidden = compose.images.length >= IMG_MAX;
+}
+$("cImgInput").addEventListener("change", async ev => {
+  const files = [...ev.target.files];
+  ev.target.value = "";
+  const room = IMG_MAX - compose.images.length;
+  if (files.length > room) $("cImgMsg").textContent = `เพิ่มได้อีก ${room} รูป (สูงสุด ${IMG_MAX} รูปต่อรีวิว)`;
+  else $("cImgMsg").textContent = "";
+  for (const f of files.slice(0, room)) {
+    try {
+      const blob = await compressImage(f);
+      compose.images.push({ blob, preview: URL.createObjectURL(blob) });
+      renderComposeImages();
+    } catch (err) {
+      $("cImgMsg").textContent = err.message === "type" ? `“${f.name}” ไม่ใช่ไฟล์รูปภาพ`
+        : err.message === "big" ? `“${f.name}” ใหญ่เกินไป ลองเลือกรูปที่เล็กลง`
+        : `เปิดรูป “${f.name}” ไม่ได้ ลองบันทึกเป็น JPG หรือ PNG แล้วเลือกใหม่`;
+    }
+  }
+});
+$("cImages").addEventListener("click", ev => {
+  const del = ev.target.closest("[data-img-del]"), cov = ev.target.closest("[data-img-cover]");
+  if (del) {
+    const [im] = compose.images.splice(+del.dataset.imgDel, 1);
+    if (im?.preview) URL.revokeObjectURL(im.preview);
+  } else if (cov) {
+    const [im] = compose.images.splice(+cov.dataset.imgCover, 1);
+    compose.images.unshift(im);
+  } else return;
+  $("cImgMsg").textContent = "";
+  renderComposeImages();
+});
+function openLightbox(src, alt) {
+  $("lbImg").src = src; $("lbImg").alt = alt || "";
+  $("lightbox").hidden = false;
+  $("lbClose").focus();
+}
+function closeLightbox() { $("lightbox").hidden = true; $("lbImg").removeAttribute("src"); }
+$("pArticle").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-zoom]");
+  if (b) openLightbox(b.dataset.zoom, b.querySelector("img")?.alt);
+});
+$("lightbox").addEventListener("click", ev => { if (ev.target !== $("lbImg")) closeLightbox(); });
+document.addEventListener("keydown", ev => { if (ev.key === "Escape" && !$("lightbox").hidden) closeLightbox(); });
 
 // ---------- เชื่อมกับ app.js ----------
 function onBoardRender(view) {

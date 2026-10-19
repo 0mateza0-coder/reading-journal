@@ -359,6 +359,13 @@
           <label>เนื้อหารีวิว <small>อย่างน้อย 30 ตัวอักษร · <span id="cCount">0</span>/10000</small>
             <textarea id="cBody" rows="10" maxlength="10000" required></textarea></label>
         </fieldset>
+        <fieldset>
+          <legend>รูปภาพ</legend>
+          <p class="note">ภาพปกหรือรูปเล่มหนังสือ ได้สูงสุด 4 รูป · รูปแรกจะใช้เป็นภาพปกในหน้ารวมรีวิว</p>
+          <div class="img-grid" id="cImages"></div>
+          <label class="filebtn img-add" id="cImgAdd">📷 เพิ่มรูป<input type="file" id="cImgInput" accept="image/*" multiple></label>
+          <p class="msg error" id="cImgMsg" role="status"></p>
+        </fieldset>
         <p class="msg error" id="cMsg" role="status"></p>
         <div class="actions">
           <button class="primary" type="submit" id="cSubmit">โพสต์รีวิว</button>
@@ -437,6 +444,10 @@
   </main>
 
   <div class="toast" id="toast" role="status" hidden></div>
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="ดูรูปขนาดใหญ่" hidden>
+    <button class="lb-close" id="lbClose" aria-label="ปิด">✕</button>
+    <img id="lbImg" alt="">
+  </div>
   <button class="update-bar" id="updateBar" hidden>มีเวอร์ชันใหม่ของแอป · แตะเพื่อโหลด</button>
   <button class="timer-mini" id="timerMini" data-go="write" hidden>⏱ <span id="timerMiniTime">00:00</span> · กำลังอ่าน แตะเพื่อกลับไปบันทึก</button>
 

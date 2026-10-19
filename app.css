@@ -425,6 +425,30 @@ button.book-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var
 .lg-val { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
 .lg-val small { display: block; font-weight: 400; font-size: .68rem; color: var(--muted); }
 
+/* รูปประกอบรีวิว */
+a.b-card.has-cover { grid-template-columns: minmax(0, 1fr) 74px; column-gap: 14px; }
+a.b-card.has-cover > :not(.b-cover) { grid-column: 1; }
+.b-cover { grid-column: 2; grid-row: 1 / span 5; width: 74px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--field); box-shadow: 2px 3px 8px -4px rgb(var(--shadow) / .5); }
+/* ภาพปกแสดงเต็มไม่ครอป รูปที่เหลือเป็นแถวภาพย่อด้านล่าง */
+.gallery { display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g-img { padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--field); box-shadow: none; cursor: zoom-in; }
+.g-img img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; }
+.g-img:first-child { grid-column: 1 / -1; display: grid; place-items: center; }
+.g-img:first-child img { width: auto; max-width: 100%; aspect-ratio: auto; max-height: 380px; object-fit: contain; }
+.img-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.img-grid:empty { display: none; }
+.img-tile { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--field); aspect-ratio: 3 / 4; }
+.img-tile.is-cover { border: 2px solid var(--gold); }
+.img-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.img-badge, .img-act { position: absolute; left: 4px; bottom: 4px; font-size: .64rem; font-weight: 700; padding: 2px 6px; border-radius: 6px; border: 0; box-shadow: none; }
+.img-badge { background: var(--gold); color: var(--paper); }
+.img-act { background: rgb(0 0 0 / .55); color: #fff; }
+.img-del { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 0; background: rgb(0 0 0 / .6); color: #fff; font-size: .7rem; line-height: 1; box-shadow: none; }
+.img-add { justify-self: start; }
+.lightbox { position: fixed; inset: 0; z-index: 40; background: rgb(10 14 12 / .9); display: grid; place-items: center; padding: calc(env(safe-area-inset-top, 0px) + 48px) 12px calc(env(safe-area-inset-bottom, 0px) + 24px); }
+.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.lb-close { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 10px); right: 12px; width: 40px; height: 40px; border-radius: 50%; padding: 0; background: rgb(255 255 255 / .15); color: #fff; border: 0; font-size: 1rem; }
+
 /* ---------- แถบเมนูล่าง ---------- */
 .tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;

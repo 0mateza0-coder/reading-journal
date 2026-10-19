@@ -100,3 +100,34 @@ drop policy if exists "admins delete reports" on public.reports;
 create policy "insert own report"     on public.reports for insert with check (auth.uid() = user_id);
 create policy "admins read reports"   on public.reports for select using (public.is_admin());
 create policy "admins delete reports" on public.reports for delete using (public.is_admin());
+
+-- ---------- รูปประกอบรีวิว (ภาพปก / รูปเล่ม) ----------
+-- เก็บใน Supabase Storage บักเก็ต review-images (อ่านได้สาธารณะ) ไฟล์ละไม่เกิน 2 MB
+-- แอปย่อรูปเป็น JPEG ด้านยาวไม่เกิน 1600px ก่อนอัปโหลด และเก็บที่ <user id>/<ชื่อไฟล์>.jpg
+alter table public.reviews add column if not exists images text[] not null default '{}';
+alter table public.reviews drop constraint if exists reviews_images_max;
+alter table public.reviews add constraint reviews_images_max check (coalesce(array_length(images, 1), 0) <= 4);
+
+-- รูปในรีวิวต้องอยู่ในโฟลเดอร์ของผู้เขียนรีวิวเท่านั้น
+create or replace function public.check_review_images() returns trigger
+language plpgsql as $$
+begin
+  if exists (select 1 from unnest(new.images) p where p not like new.user_id::text || '/%' or p like '%..%') then
+    raise exception 'invalid image path';
+  end if;
+  return new;
+end $$;
+drop trigger if exists reviews_check_images on public.reviews;
+create trigger reviews_check_images before insert or update on public.reviews
+  for each row execute function public.check_review_images();
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('review-images', 'review-images', true, 2097152, array['image/jpeg', 'image/webp', 'image/png'])
+on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "upload own review images" on storage.objects;
+drop policy if exists "delete own review images" on storage.objects;
+create policy "upload own review images" on storage.objects for insert to authenticated
+  with check (bucket_id = 'review-images' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "delete own review images" on storage.objects for delete to authenticated
+  using (bucket_id = 'review-images' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
