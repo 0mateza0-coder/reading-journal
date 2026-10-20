@@ -131,3 +131,24 @@ create policy "upload own review images" on storage.objects for insert to authen
   with check (bucket_id = 'review-images' and (storage.foldername(name))[1] = auth.uid()::text);
 create policy "delete own review images" on storage.objects for delete to authenticated
   using (bucket_id = 'review-images' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+-- ---------- จำกัดจำนวนโพสต์ต่อวัน (กันสแปม) ----------
+-- รีวิว 10 เรื่อง และความคิดเห็น 50 ข้อความ ต่อผู้ใช้ ใน 24 ชั่วโมง (ผู้ดูแลไม่ถูกจำกัด)
+create or replace function public.enforce_post_limits() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  if public.is_admin() then return new; end if;
+  if tg_table_name = 'reviews' then
+    select count(*) into n from public.reviews where user_id = new.user_id and created_at > now() - interval '24 hours';
+    if n >= 10 then raise exception 'rate_limit: reviews per day'; end if;
+  else
+    select count(*) into n from public.comments where user_id = new.user_id and created_at > now() - interval '24 hours';
+    if n >= 50 then raise exception 'rate_limit: comments per day'; end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists reviews_rate_limit on public.reviews;
+create trigger reviews_rate_limit before insert on public.reviews for each row execute function public.enforce_post_limits();
+drop trigger if exists comments_rate_limit on public.comments;
+create trigger comments_rate_limit before insert on public.comments for each row execute function public.enforce_post_limits();

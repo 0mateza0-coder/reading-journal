@@ -22,7 +22,7 @@ const TITLES = {
   login: "สมุดบันทึกการอ่าน", home: "สมุดบันทึกการอ่าน", write: "บันทึกวันนี้", calendar: "ปฏิทินการอ่าน",
   library: "คลังบันทึก", review: "ทบทวน", settings: "ตั้งค่า",
   board: "เว็บบอร์ดรีวิว", post: "รีวิวหนังสือ", compose: "เขียนรีวิว",
-  book: "หนังสือ", stats: "สถิติการอ่าน"
+  book: "หนังสือ", stats: "สถิติการอ่าน", welcome: "สมุดบันทึกการอ่าน"
 };
 // หน้าย่อยที่ให้ไฮไลต์แท็บไหนในแถบเมนู
 const TAB_OF = { post: "board", compose: "board", review: "home", book: "library", stats: "home" };
@@ -456,7 +456,7 @@ function mergeBooks(a, b) {
     const k = normTitle(x.title), keep = seen.get(k);
     if (!keep) { seen.set(k, x); out.push(x); continue; }
     // ชื่อซ้ำ: เติมข้อมูลที่ขาดให้เล่มแรก แล้วทำเครื่องหมายเล่มหลังว่าลบ
-    for (const f of ["author", "category", "totalPages", "finishedAt"]) if (!keep[f] && x[f]) keep[f] = x[f];
+    for (const f of ["author", "category", "totalPages", "finishedAt", "cover"]) if (!keep[f] && x[f]) keep[f] = x[f];
     out.push({ id: x.id, title: x.title, deleted: true, updatedAt: new Date().toISOString() });
   }
   return out;
@@ -672,9 +672,10 @@ function render() {
   if (current === "library") renderLibrary();
   if (current === "calendar") renderCalendar();
   if (current === "write") renderBookList();
-  if (current === "settings") { renderNotifState(); renderAccount(); renderPersist(); $("backupMsg").textContent = lastBackupText(); }
+  if (current === "settings") { renderNotifState(); renderAccount(); renderPersist(); renderDeleteCard(); $("delMsg").textContent = ""; $("backupMsg").textContent = lastBackupText(); }
   if (typeof onBoardRender === "function") onBoardRender(current);
   if (typeof onShelfRender === "function") onShelfRender(current);
+  if (typeof onGuideRender === "function") onGuideRender(current);
   renderTimer();
   updateBadge();
 }
@@ -1078,6 +1079,52 @@ $("timerReset").addEventListener("click", () => {
 $("homeTimer").addEventListener("click", () => {
   if (isIdle(getTimer())) timerStart();
   go("write");
+});
+
+// ---------- ลบข้อมูลทั้งหมด / ลบบัญชี ----------
+function renderDeleteCard() {
+  const acct = mode === "account";
+  $("delTitle").textContent = acct ? "ลบบัญชีและข้อมูลทั้งหมด" : "ลบข้อมูลทั้งหมดในเครื่องนี้";
+  $("delNote").textContent = acct
+    ? `ลบบัญชี ${user.email} พร้อมบันทึก ชั้นหนังสือ เป้าหมาย รีวิว ความคิดเห็น และรูปทั้งหมดออกจากเซิร์ฟเวอร์ทันที กู้คืนไม่ได้ ถ้าอยากเก็บไว้ ให้ส่งออกไฟล์สำรองก่อน`
+    : "ลบบันทึก ชั้นหนังสือ เป้าหมาย และการตั้งค่าทั้งหมดที่เก็บในเครื่องนี้ กู้คืนไม่ได้ ถ้าอยากเก็บไว้ ให้ส่งออกไฟล์สำรองก่อน";
+  $("delBtn").textContent = acct ? "ลบบัญชีถาวร" : "ลบข้อมูลในเครื่อง";
+  $("delBtn").disabled = $("delConfirm").value.trim() !== "ลบ";
+}
+$("delConfirm").addEventListener("input", renderDeleteCard);
+function wipeLocal() {
+  try {
+    const keep = [THEME_KEY];
+    Object.keys(localStorage).filter(k => k.startsWith("reading-journal") && !keep.includes(k)).forEach(k => localStorage.removeItem(k));
+  } catch {}
+}
+$("delBtn").addEventListener("click", async () => {
+  if ($("delConfirm").value.trim() !== "ลบ") return;
+  const btn = $("delBtn");
+  btn.disabled = true;
+  $("delMsg").textContent = "กำลังลบ…";
+  try {
+    if (mode === "account" && sb) {
+      // ลบรูปในโฟลเดอร์ของตัวเองก่อน แล้วลบบัญชี (ข้อมูลในตารางลบตามอัตโนมัติ)
+      const folder = await sb.storage.from("review-images").list(user.id, { limit: 1000 });
+      const paths = (folder.data || []).map(f => `${user.id}/${f.name}`);
+      if (paths.length) await sb.storage.from("review-images").remove(paths);
+      const { error } = await sb.rpc("delete_my_account");
+      if (error) throw error;
+      try { await sb.auth.signOut(); } catch {}
+    }
+    wipeLocal();
+    entries = []; user = null; mode = "guest";
+    $("delConfirm").value = "";
+    toast("ลบข้อมูลทั้งหมดแล้ว");
+    setTimeout(() => location.reload(), 900);
+  } catch (err) {
+    console.warn(err);
+    $("delMsg").textContent = (err?.message || "").includes("delete_my_account")
+      ? "ลบบัญชีไม่ได้ เพราะยังไม่ได้ติดตั้งฟังก์ชันลบบัญชี ผู้ดูแลต้องรัน supabase/schema.sql ล่าสุดก่อน"
+      : "ลบไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่";
+    btn.disabled = false;
+  }
 });
 
 // ---------- ธีม (สว่าง / มืด / ตามเครื่อง) ----------

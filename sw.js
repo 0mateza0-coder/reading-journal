@@ -1,6 +1,6 @@
 // เปลี่ยนเลขเวอร์ชันทุกครั้งที่แก้ไฟล์แอป เพื่อให้เครื่องที่ติดตั้งไว้โหลดของใหม่
-const CACHE = "reading-journal-v14";
-const SHELL = ["./", "index.html", "app.css", "config.js", "app.js", "board.js", "shelf.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
+const CACHE = "reading-journal-v17";
+const SHELL = ["./", "index.html", "app.css", "config.js", "app.js", "board.js", "shelf.js", "onboard.js", "privacy.html", "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
   // cache: "reload" = ดึงไฟล์ใหม่จากเซิร์ฟเวอร์เสมอ ไม่ใช้ไฟล์เก่าในแคชของเบราว์เซอร์
@@ -23,7 +23,8 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  const isCdn = ["fonts.googleapis.com", "fonts.gstatic.com", "cdn.jsdelivr.net"].includes(url.hostname);
+  // ฟอนต์ ไลบรารี และภาพปกหนังสือ: เก็บไว้ใช้ตอนออฟไลน์
+  const isCdn = ["fonts.googleapis.com", "fonts.gstatic.com", "cdn.jsdelivr.net", "covers.openlibrary.org", "books.google.com", "books.googleusercontent.com"].includes(url.hostname);
   const sameOrigin = url.origin === location.origin;
   if (!sameOrigin && !isCdn) return;
 

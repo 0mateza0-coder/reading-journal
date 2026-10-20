@@ -56,6 +56,7 @@ function boardError(err) {
   if (m.includes("fetch") || m.includes("network") || !navigator.onLine) return "เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่";
   if (m.includes("row-level security") || err?.code === "42501") return "ไม่มีสิทธิ์ทำรายการนี้ ลองออกจากระบบแล้วเข้าใหม่";
   if (err?.code === "42P01" || m.includes("does not exist")) return "ยังไม่ได้สร้างตารางเว็บบอร์ด ผู้ดูแลต้องรัน supabase/board.sql ก่อน";
+  if (m.includes("rate_limit")) return m.includes("comments") ? "วันนี้แสดงความคิดเห็นครบ 50 ข้อความแล้ว ลองใหม่พรุ่งนี้" : "วันนี้โพสต์รีวิวครบ 10 เรื่องแล้ว ลองใหม่พรุ่งนี้";
   return "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง";
 }
 // กดสองครั้งเพื่อยืนยัน: ครั้งแรกเปลี่ยนข้อความปุ่ม ครั้งที่สองคืนค่า true

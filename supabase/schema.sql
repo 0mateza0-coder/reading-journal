@@ -38,3 +38,13 @@ drop policy if exists "update own settings" on public.settings;
 create policy "read own settings"   on public.settings for select using (auth.uid() = user_id);
 create policy "insert own settings" on public.settings for insert with check (auth.uid() = user_id);
 create policy "update own settings" on public.settings for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ลบบัญชีของตัวเอง (เรียกจากปุ่ม "ลบบัญชีและข้อมูลทั้งหมด" ในหน้าตั้งค่า)
+-- ลบผู้ใช้ใน auth.users แล้วข้อมูลทุกตารางที่อ้างถึงจะถูกลบตาม (on delete cascade)
+-- รูปใน Storage แอปจะลบเองก่อนเรียกฟังก์ชันนี้
+create or replace function public.delete_my_account() returns void
+language sql security definer set search_path = public as $$
+  delete from auth.users where id = auth.uid();
+$$;
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

@@ -39,6 +39,102 @@ function bookForecast(b) {
   return { left, daysLeft, date: addDays(todayStr(), daysLeft), minsLeft: sp ? left / sp.ppm : null };
 }
 
+// ---------- ค้นหาข้อมูลหนังสือ (Open Library + Google Books) ----------
+// Open Library ใช้ได้ฟรีไม่ต้องมีคีย์ · Google Books ใช้เป็นตัวเสริม (ถ้าถูกจำกัดการใช้งาน จะข้ามไปเอง)
+const isIsbn = q => /^(97[89])?\d{9}[\dxX]$/.test(q.replace(/[-\s]/g, ""));
+const httpsUrl = u => u ? String(u).replace(/^http:/, "https:") : "";
+async function fetchJson(url, signal, ms = 6000) {
+  const ctl = new AbortController();
+  const stop = () => ctl.abort();
+  signal?.addEventListener("abort", stop);
+  const timer = setTimeout(stop, ms);
+  try { const r = await fetch(url, { signal: ctl.signal }); return r.ok ? await r.json() : null; }
+  catch { return null; }
+  finally { clearTimeout(timer); signal?.removeEventListener("abort", stop); }
+}
+async function searchOpenLibrary(q, signal) {
+  const term = isIsbn(q) ? `isbn:${q.replace(/[-\s]/g, "")}` : q;
+  const j = await fetchJson(`https://openlibrary.org/search.json?q=${encodeURIComponent(term)}&limit=8&fields=key,title,author_name,number_of_pages_median,cover_i,first_publish_year`, signal);
+  return (j?.docs || []).map(d => ({
+    title: d.title, author: (d.author_name || []).slice(0, 2).join(", "), pages: d.number_of_pages_median || null,
+    year: d.first_publish_year || null, cover: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : "", source: "Open Library"
+  }));
+}
+async function searchGoogleBooks(q, signal) {
+  const term = isIsbn(q) ? `isbn:${q.replace(/[-\s]/g, "")}` : q;
+  const j = await fetchJson(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(term)}&maxResults=8&printType=books`, signal);
+  return (j?.items || []).map(({ volumeInfo: v = {} }) => ({
+    title: [v.title, v.subtitle].filter(Boolean).join(": "), author: (v.authors || []).slice(0, 2).join(", "), pages: v.pageCount || null,
+    year: v.publishedDate ? +v.publishedDate.slice(0, 4) : null, cover: httpsUrl(v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail), source: "Google Books"
+  }));
+}
+let bookSearchCtl = null, bookSearchTimer = null, bookSearchHits = [];
+async function runBookSearch(q) {
+  bookSearchCtl?.abort();
+  bookSearchCtl = new AbortController();
+  const signal = bookSearchCtl.signal;
+  $("bfResults").innerHTML = `<p class="note">กำลังค้นหา…</p>`;
+  const [ol, gb] = await Promise.all([searchOpenLibrary(q, signal), searchGoogleBooks(q, signal)]);
+  if (signal.aborted) return;
+  // รวมผล ตัดเล่มซ้ำ (ชื่อ + ผู้แต่งเดียวกัน) เล่มที่มีภาพปกและจำนวนหน้าขึ้นก่อน
+  const seen = new Set();
+  bookSearchHits = [...gb, ...ol].filter(h => h.title).filter(h => { const k = normTitle(h.title) + "|" + normTitle(h.author); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => (!!b.cover + !!b.pages) - (!!a.cover + !!a.pages)).slice(0, 8);
+  $("bfResults").innerHTML = bookSearchHits.length ? bookSearchHits.map((h, i) => `
+    <button type="button" class="hit" role="option" data-hit="${i}">
+      ${h.cover ? `<img src="${esc(h.cover)}" alt="" loading="lazy">` : `<span class="hit-nocover" aria-hidden="true">📖</span>`}
+      <span class="hit-main"><b>${esc(h.title)}</b><span class="meta">${esc([h.author, h.year, h.pages ? `${h.pages} หน้า` : ""].filter(Boolean).join(" · "))}</span></span>
+    </button>`).join("")
+    : `<p class="note">ไม่พบหนังสือนี้ในฐานข้อมูล กรอกข้อมูลเองด้านล่างได้เลย</p>`;
+}
+$("bfSearch").addEventListener("input", () => {
+  clearTimeout(bookSearchTimer);
+  const q = $("bfSearch").value.trim();
+  if (q.length < 2) { bookSearchCtl?.abort(); $("bfResults").innerHTML = ""; return; }
+  bookSearchTimer = setTimeout(() => runBookSearch(q), 450);
+});
+$("bfSearch").addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); clearTimeout(bookSearchTimer); const q = $("bfSearch").value.trim(); if (q.length >= 2) runBookSearch(q); } });
+$("bfResults").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-hit]");
+  const h = b && bookSearchHits[+b.dataset.hit];
+  if (!h) return;
+  $("bfTitle").value = h.title;
+  if (h.author) $("bfAuthor").value = h.author;
+  if (h.pages) $("bfPages").value = h.pages;
+  if (h.cover) setFormCover(h.cover);
+  $("bfResults").innerHTML = `<p class="note">✓ เติมข้อมูลจาก ${esc(h.source)} แล้ว ตรวจสอบหรือแก้ได้ด้านล่าง</p>`;
+  $("bfSearch").value = "";
+});
+
+// ภาพปก: ลิงก์จากฐานข้อมูล หรือรูปที่เลือกเอง (ย่อเหลือกว้าง 300px เก็บในเครื่อง/ซิงก์ไปกับชั้นหนังสือ)
+let formCover = "";
+function setFormCover(src) {
+  formCover = src || "";
+  $("bfCoverImg").hidden = !formCover;
+  if (formCover) $("bfCoverImg").src = formCover; else $("bfCoverImg").removeAttribute("src");
+  $("bfCoverEmpty").hidden = !!formCover;
+  $("bfCoverDel").hidden = !formCover;
+}
+async function coverFromFile(file) {
+  if (!file.type.startsWith("image/")) throw new Error("type");
+  const src = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = src; });
+    const w = Math.min(300, img.naturalWidth), h = Math.round(img.naturalHeight * w / img.naturalWidth);
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+    return cv.toDataURL("image/jpeg", 0.72);
+  } finally { URL.revokeObjectURL(src); }
+}
+$("bfCoverFile").addEventListener("change", async ev => {
+  const f = ev.target.files[0]; ev.target.value = "";
+  if (!f) return;
+  try { setFormCover(await coverFromFile(f)); }
+  catch (err) { $("bfMsg").textContent = err.message === "type" ? "ไฟล์นี้ไม่ใช่รูปภาพ" : "เปิดรูปนี้ไม่ได้ ลองบันทึกเป็น JPG หรือ PNG แล้วเลือกใหม่"; }
+});
+$("bfCoverDel").addEventListener("click", () => setFormCover(""));
+const coverImg = (b, cls) => b.cover ? `<img class="${cls}" src="${esc(b.cover)}" alt="ภาพปก ${esc(b.title)}" loading="lazy" decoding="async">` : "";
+
 // ---------- ชั้นหนังสือ ----------
 function bookCard(b) {
   const read = pagesReadOf(b);
@@ -46,7 +142,7 @@ function bookCard(b) {
   const fc = bookForecast(b);
   const meta = [b.author, b.category ? catLabel(b.category) : "", b.status === "done" && b.finishedAt ? `จบเมื่อ ${fmt(b.finishedAt)}` : ""].filter(Boolean).join(" · ");
   return `<button type="button" class="entry book-card" data-book="${esc(b.id)}">
-    <span class="book-spine" aria-hidden="true"></span>
+    ${b.cover ? coverImg(b, "book-thumb") : `<span class="book-spine" aria-hidden="true"></span>`}
     <span class="book-main">
       <span class="entry-head"><h3>${esc(b.title)}</h3>${b.status === "done" ? `<span class="chip gold">✓ จบแล้ว</span>` : ""}</span>
       ${meta ? `<span class="meta">${esc(meta)}</span>` : ""}
@@ -86,6 +182,8 @@ function openBookForm(b) {
   $("bfPages").value = b?.totalPages || "";
   $("bfStatus").value = b?.status || "want";
   $("bfMsg").textContent = "";
+  $("bfSearch").value = ""; $("bfResults").innerHTML = "";
+  setFormCover(b?.cover || "");
   $("bookForm").hidden = false;
   if (current !== "library") { libTab = "shelf"; go("library"); }
   $("bookForm").scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -110,7 +208,7 @@ $("bookForm").addEventListener("submit", ev => {
   if (prev && normTitle(prev.title) !== normTitle(title)) {
     for (const e of entries.filter(e => normTitle(e.book) === normTitle(prev.title))) upsert({ ...e, book: title });
   }
-  Object.assign(b, { title, author: $("bfAuthor").value.trim(), category: $("bfCat").value, totalPages: pages ? Math.round(+pages) : null });
+  Object.assign(b, { title, author: $("bfAuthor").value.trim(), category: $("bfCat").value, totalPages: pages ? Math.round(+pages) : null, cover: formCover || null });
   setBookStatus(b, status, false);
   upsertBook(b);
   closeBookForm();
@@ -134,7 +232,7 @@ $("shelfRandom").addEventListener("click", () => {
   const b = want[Math.floor(Math.random() * want.length)];
   $("shelfPick").hidden = false;
   $("shelfPick").innerHTML = `<p class="meta">🎲 เล่มถัดไปที่น่าอ่าน</p>
-    <h3>${esc(b.title)}</h3>${b.author ? `<p class="meta">${esc(b.author)}</p>` : ""}
+    ${b.cover ? coverImg(b, "pick-cover") : ""}<h3>${esc(b.title)}</h3>${b.author ? `<p class="meta">${esc(b.author)}</p>` : ""}
     <div class="actions"><button class="primary small" data-start-book="${esc(b.id)}">เริ่มอ่านเล่มนี้</button><button class="small" id="shelfReroll">สุ่มใหม่</button></div>`;
 });
 
@@ -152,6 +250,7 @@ function renderBook() {
   const fc = bookForecast(b);
   const pct = b.totalPages ? Math.min(100, Math.round(read / b.totalPages * 100)) : null;
   $("bdCard").innerHTML = `
+    ${b.cover ? `<div class="bd-cover">${coverImg(b, "")}</div>` : ""}
     <div class="entry-head"><span class="chip">${esc(statusLabel(b.status))}</span>${b.category ? `<span class="chip quiet">${esc(catLabel(b.category))}</span>` : ""}</div>
     <h2 class="post-title">${esc(b.title)}</h2>
     ${b.author ? `<p class="book">${esc(b.author)}</p>` : ""}

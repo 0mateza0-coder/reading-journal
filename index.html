@@ -49,6 +49,7 @@
         <hr>
         <button type="button" id="guestBtn">ใช้งานโดยไม่ล็อกอิน</button>
         <p class="note">ถ้าไม่ล็อกอิน บันทึกจะเก็บในเครื่องนี้เท่านั้น ล็อกอินทีหลังแล้วย้ายเข้าบัญชีได้</p>
+        <p class="note legal">การสมัครและใช้งานถือว่ายอมรับ <a href="privacy.html">นโยบายความเป็นส่วนตัว</a> และ <a href="privacy.html#rules">กติกาเว็บบอร์ด</a></p>
       </div>
 
       <form id="recoveryForm" class="card stack" hidden novalidate>
@@ -58,6 +59,58 @@
         <button class="primary" type="submit">บันทึกรหัสผ่านใหม่</button>
         <p class="msg" id="recoveryMsg" role="status"></p>
       </form>
+    </section>
+
+    <!-- แนะนำการใช้งานครั้งแรก -->
+    <section id="view-welcome" class="view" hidden>
+      <div class="card welcome" id="wCard">
+        <div class="w-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+        <div class="w-step" data-step="1">
+          <p class="w-eyebrow">ยินดีต้อนรับ</p>
+          <h2 class="w-title">อ่านแล้วจำได้ ด้วย 3 ขั้นง่าย ๆ</h2>
+          <ol class="w-ideas">
+            <li><b>⏱ จับเวลาตอนอ่าน</b><span>อ่านเป็นช่วงสั้น ๆ จะใช้ Pomodoro 25 นาทีก็ได้</span></li>
+            <li><b>✍️ ปิดหนังสือแล้วสรุป</b><span>เขียนประเด็นสำคัญ 3 ข้อด้วยคำพูดของตัวเอง</span></li>
+            <li><b>🔁 ทบทวนตามรอบ</b><span>แอปเตือนให้ทบทวนวันที่ 1, 3, 7 และ 30 ไม่ให้ลืม</span></li>
+          </ol>
+          <div class="actions"><button class="primary big" data-w-next>เริ่มตั้งค่า (1 นาที)</button></div>
+        </div>
+
+        <div class="w-step" data-step="2" hidden>
+          <p class="w-eyebrow">ขั้นที่ 1 จาก 3</p>
+          <h2 class="w-title">ตอนนี้กำลังอ่านเล่มไหนอยู่?</h2>
+          <label><span class="sr">ชื่อหนังสือ</span><input id="wBook" maxlength="200" placeholder="พิมพ์ชื่อหนังสือ" autocomplete="off"></label>
+          <div class="search-results" id="wHits"></div>
+          <div class="w-picked" id="wPicked" hidden></div>
+          <div class="actions"><button class="primary" data-w-next>ถัดไป</button><button class="link" data-w-skipbook>ยังไม่ได้อ่านเล่มไหน</button></div>
+        </div>
+
+        <div class="w-step" data-step="3" hidden>
+          <p class="w-eyebrow">ขั้นที่ 2 จาก 3</p>
+          <h2 class="w-title">ตั้งเป้าอ่านวันละกี่นาที?</h2>
+          <p class="note">เริ่มน้อย ๆ แต่ทำได้ทุกวัน ดีกว่าตั้งเยอะแล้วเลิก</p>
+          <div class="chips-pick" id="wMinutes" role="radiogroup" aria-label="นาทีต่อวัน"></div>
+          <div class="seg" id="wDays" role="group" aria-label="วันที่ตั้งใจอ่าน">
+            <button type="button" data-days="all" aria-pressed="true">ทุกวัน</button>
+            <button type="button" data-days="weekdays" aria-pressed="false">จันทร์–ศุกร์</button>
+          </div>
+          <div class="actions"><button class="primary" data-w-next>ถัดไป</button></div>
+        </div>
+
+        <div class="w-step" data-step="4" hidden>
+          <p class="w-eyebrow">ขั้นที่ 3 จาก 3</p>
+          <h2 class="w-title">ให้แอปเตือนตอนถึงรอบทบทวนไหม?</h2>
+          <p class="note" id="wNotifNote">แอปจะแจ้งเตือนเมื่อมีเรื่องที่ต้องทบทวน และเมื่อครบรอบ Pomodoro</p>
+          <div class="actions"><button id="wNotif">เปิดการแจ้งเตือน</button></div>
+          <p class="note" id="wInstall"></p>
+          <div class="actions w-finish">
+            <button class="primary big" data-w-finish="timer">⏱ เริ่มจับเวลาอ่านเลย</button>
+            <button class="big" data-w-finish="home">ไปหน้าแรก</button>
+          </div>
+        </div>
+      </div>
+      <button class="link w-skip" data-w-finish="skip">ข้ามการแนะนำ</button>
     </section>
 
     <!-- หน้าแรก -->
@@ -193,6 +246,19 @@
         <div class="card pick" id="shelfPick" hidden></div>
         <form id="bookForm" class="card stack" hidden novalidate>
           <h2 id="bookFormTitle">เพิ่มหนังสือ</h2>
+          <div class="book-search" id="bfSearchWrap">
+            <label>ค้นหาข้อมูลหนังสือ <small>พิมพ์ชื่อหนังสือหรือเลข ISBN แล้วเลือกเล่มที่ตรง</small>
+              <input type="search" id="bfSearch" placeholder="🔍 เช่น Atomic Habits หรือ 9780735211292" autocomplete="off" enterkeyhint="search"></label>
+            <div class="search-results" id="bfResults" role="listbox" aria-label="ผลการค้นหาหนังสือ"></div>
+            <p class="note" id="bfSearchNote">หนังสือไทยบางเล่มอาจค้นไม่เจอ กรอกเองด้านล่างได้เลย</p>
+          </div>
+          <div class="cover-edit">
+            <div class="cover-box" id="bfCoverBox" aria-hidden="true"><img id="bfCoverImg" alt="" hidden><span id="bfCoverEmpty">ยังไม่มีภาพปก</span></div>
+            <div class="actions">
+              <label class="filebtn small-file">เลือกรูปปกเอง<input type="file" id="bfCoverFile" accept="image/*"></label>
+              <button type="button" class="small" id="bfCoverDel" hidden>ลบภาพปก</button>
+            </div>
+          </div>
           <div class="row">
             <label>ชื่อหนังสือ<input id="bfTitle" maxlength="200" required></label>
             <label>ผู้แต่ง<input id="bfAuthor" maxlength="200"></label>
@@ -366,6 +432,7 @@
           <label class="filebtn img-add" id="cImgAdd">📷 เพิ่มรูป<input type="file" id="cImgInput" accept="image/*" multiple></label>
           <p class="msg error" id="cImgMsg" role="status"></p>
         </fieldset>
+        <p class="note legal">รีวิวและรูปที่โพสต์เป็นสาธารณะ โปรดอ่าน <a href="privacy.html#rules" target="_blank" rel="noopener">กติกาเว็บบอร์ด</a> ก่อนโพสต์</p>
         <p class="msg error" id="cMsg" role="status"></p>
         <div class="actions">
           <button class="primary" type="submit" id="cSubmit">โพสต์รีวิว</button>
@@ -435,6 +502,18 @@
           <label><input type="radio" name="theme" value="system"> ตามเครื่อง</label>
         </div>
       </div>
+      <div class="card stack">
+        <h2>คำแนะนำการใช้งาน</h2>
+        <div class="actions"><button id="replayGuide">ดูคำแนะนำอีกครั้ง</button><button id="resetTips">แสดงเคล็ดลับในแต่ละหน้าอีกครั้ง</button></div>
+      </div>
+      <div class="card stack danger-zone">
+        <h2 id="delTitle">ลบข้อมูลทั้งหมด</h2>
+        <p class="note" id="delNote"></p>
+        <label>พิมพ์คำว่า <b>ลบ</b> เพื่อยืนยัน<input id="delConfirm" autocomplete="off" maxlength="10"></label>
+        <div class="actions"><button class="danger" id="delBtn" disabled>ลบข้อมูลทั้งหมด</button></div>
+        <p class="msg error" id="delMsg" role="status"></p>
+      </div>
+      <p class="note legal"><a href="privacy.html">นโยบายความเป็นส่วนตัว</a> · <a href="privacy.html#rules">กติกาเว็บบอร์ด</a></p>
       <div class="card stack" id="installCard">
         <h2>ติดตั้งลงหน้าจอโฮม</h2>
         <p class="note" id="installHint">iPhone / iPad: เปิดใน Safari แล้วกดปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”<br>Android / คอมพิวเตอร์: กดปุ่มด้านล่าง หรือเลือก “ติดตั้งแอป” จากเมนูของเบราว์เซอร์</p>
@@ -464,5 +543,6 @@
   <script src="app.js"></script>
   <script src="board.js"></script>
   <script src="shelf.js"></script>
+  <script src="onboard.js"></script>
 </body>
 </html>
