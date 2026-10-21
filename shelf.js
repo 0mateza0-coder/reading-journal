@@ -542,7 +542,7 @@ function renderSpeed() {
     : `<p class="note">ใส่ทั้งเลขหน้าและเวลาที่อ่านในบันทึก แอปจะคำนวณความเร็วและคาดการณ์วันอ่านจบให้</p>`);
 }
 
-function renderStats() {
+function renderStatsPage() {
   document.querySelectorAll("#stPeriod [data-period]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.period === statPeriod)));
   $("stLabel").textContent = periodLabel();
   $("stNext").disabled = isCurrentPeriod();
@@ -555,13 +555,13 @@ $("stPeriod").addEventListener("click", ev => {
   statPeriod = b.dataset.period;
   if (statPeriod === "year") statYear = +statMonth.slice(0, 4); else if (statMonth.slice(0, 4) !== String(statYear)) statMonth = `${statYear}-${statYear === thisYear() ? todayStr().slice(5, 7) : "12"}`;
   for (const k in donutSel) delete donutSel[k];
-  renderStats();
+  renderStatsPage();
 });
 function stepPeriod(n) {
   if (statPeriod === "month") { const [y, m] = statMonth.split("-").map(Number); statMonth = ymd(new Date(y, m - 1 + n, 1)).slice(0, 7); statYear = +statMonth.slice(0, 4); }
   else statYear += n;
   for (const k in donutSel) delete donutSel[k];
-  renderStats();
+  renderStatsPage();
 }
 $("stPrev").addEventListener("click", () => stepPeriod(-1));
 $("stNext").addEventListener("click", () => { if (!isCurrentPeriod()) stepPeriod(1); });
@@ -601,5 +601,5 @@ function onShelfRender(view) {
   if (view === "library") renderLibTabs();
   if (view !== "library") closeBookForm();
   if (view === "book") renderBook();
-  if (view === "stats") renderStats();
+  if (view === "stats") renderStatsPage();
 }

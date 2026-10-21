@@ -152,3 +152,42 @@ drop trigger if exists reviews_rate_limit on public.reviews;
 create trigger reviews_rate_limit before insert on public.reviews for each row execute function public.enforce_post_limits();
 drop trigger if exists comments_rate_limit on public.comments;
 create trigger comments_rate_limit before insert on public.comments for each row execute function public.enforce_post_limits();
+
+-- ---------- ความปลอดภัยเพิ่มเติม ----------
+-- เวลาโพสต์ให้ฐานข้อมูลกำหนดเอง (กันการย้อนเวลาเพื่อหลบการจำกัดโพสต์ต่อวัน)
+create or replace function public.stamp_times() returns trigger
+language plpgsql as $$
+begin
+  if tg_op = 'INSERT' then
+    new.created_at := now();
+    if tg_table_name = 'reviews' then new.updated_at := now(); end if;
+  else
+    new.created_at := old.created_at;
+    new.user_id := old.user_id;
+    if tg_table_name = 'reviews' then new.updated_at := now(); end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists reviews_stamp on public.reviews;
+create trigger reviews_stamp before insert or update on public.reviews for each row execute function public.stamp_times();
+drop trigger if exists comments_stamp on public.comments;
+create trigger comments_stamp before insert or update on public.comments for each row execute function public.stamp_times();
+drop trigger if exists reports_stamp on public.reports;
+create trigger reports_stamp before insert on public.reports for each row execute function public.stamp_times();
+
+-- ชื่อที่แสดง: ห้ามมีอักขระควบคุม/ขึ้นบรรทัดใหม่
+alter table public.profiles drop constraint if exists profiles_name_clean;
+alter table public.profiles add constraint profiles_name_clean check (display_name !~ '[[:cntrl:]]');
+
+-- รายงาน: รายงานเรื่องเดิมซ้ำไม่ได้ และไม่เกิน 30 ครั้งต่อวัน
+create unique index if not exists reports_once on public.reports (user_id, target_type, target_id);
+create or replace function public.limit_reports() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (select count(*) from public.reports where user_id = new.user_id and created_at > now() - interval '24 hours') >= 30 then
+    raise exception 'rate_limit: reports per day';
+  end if;
+  return new;
+end $$;
+drop trigger if exists reports_rate_limit on public.reports;
+create trigger reports_rate_limit before insert on public.reports for each row execute function public.limit_reports();

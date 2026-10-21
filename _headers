@@ -1,0 +1,22 @@
+# Netlify: HTTP headers ด้านความปลอดภัยสำหรับทุกหน้า
+# Content-Security-Policy: อนุญาตให้โหลดสคริปต์/รูป/การเชื่อมต่อจากแหล่งที่แอปใช้จริงเท่านั้น
+#   - สคริปต์: ไฟล์ของเว็บนี้ + ไลบรารี Supabase จาก jsDelivr (ไม่อนุญาตสคริปต์ฝังในหน้า)
+#   - style 'unsafe-inline' จำเป็นเพราะแอปใช้ style="" กำหนดความกว้างของกราฟ/แถบความคืบหน้า
+#   - รูป: Supabase Storage, ภาพปกจาก Open Library (เปลี่ยนเส้นทางไป archive.org) และ Google Books
+#   - เชื่อมต่อ: Supabase, Open Library, Google Books และ CDN ที่ Service Worker เก็บแคช
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://covers.openlibrary.org https://*.archive.org https://archive.org https://books.google.com https://*.googleusercontent.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://openlibrary.org https://covers.openlibrary.org https://*.archive.org https://archive.org https://www.googleapis.com https://books.google.com https://*.googleusercontent.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com; manifest-src 'self'; worker-src 'self'; frame-src 'self' https://app.netlify.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Strict-Transport-Security: max-age=31536000
+
+# ไฟล์ที่ต้องได้เวอร์ชันล่าสุดเสมอ
+/sw.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+/config.js
+  Cache-Control: no-cache
+

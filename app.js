@@ -32,7 +32,44 @@ const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")
 const todayStr = () => ymd(new Date());
 const addDays = (s, n) => { const d = new Date(s + "T00:00:00"); d.setDate(d.getDate() + n); return ymd(d); };
 const fmt = s => new Date(s + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" });
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+// ---------- ตรวจและจัดรูปข้อมูลที่รับเข้ามา (ไฟล์สำรอง, ซิงก์, ข้อมูลเก่าในเครื่อง) ----------
+// ทุกค่าที่จะไปแสดงบนหน้าจอผ่านตรงนี้ก่อน: ตัดความยาว บังคับชนิดข้อมูล ทิ้งค่าที่ผิดรูป
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const cleanStr = (v, max) => typeof v === "string" ? v.slice(0, max) : (typeof v === "number" ? String(v).slice(0, max) : "");
+const cleanInt = (v, min, max) => { const n = Math.round(+v); return v === null || v === "" || v === undefined || !Number.isFinite(n) ? null : Math.min(max, Math.max(min, n)); };
+// วันที่ต้องมีอยู่จริง (กัน 2026-13-45) และอยู่ในช่วงที่สมเหตุสมผล
+const cleanDate = v => {
+  if (typeof v !== "string" || !DATE_RE.test(v)) return null;
+  const d = new Date(v + "T00:00:00");
+  return !Number.isNaN(d.getTime()) && ymd(d) === v && v >= "1900-01-01" && v <= "2100-12-31" ? v : null;
+};
+const cleanStamp = v => typeof v === "string" && v.length <= 40 && !Number.isNaN(Date.parse(v)) ? v : null;
+const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+// ภาพปก: รับเฉพาะลิงก์ https หรือรูป JPEG/PNG/WebP แบบ data URL ขนาดไม่เกิน ~200 KB
+const cleanCover = v => typeof v === "string" && (
+  (/^https:\/\/[^\s"'<>()\\]+$/.test(v) && v.length <= 600) ||
+  (/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 200000)) ? v : null;
+
+function sanitizeEntry(e) {
+  if (!e || typeof e !== "object") return null;
+  const date = cleanDate(e.date);
+  if (!date) return null;
+  const step = cleanInt(e.step, 0, 4) ?? 0;
+  return {
+    id: typeof e.id === "string" && ID_RE.test(e.id) ? e.id : newId("e"),
+    date, book: cleanStr(e.book, 200).trim(), chapter: cleanStr(e.chapter, 200),
+    pFrom: cleanInt(e.pFrom, 0, 100000), pTo: cleanInt(e.pTo, 0, 100000), minutes: cleanInt(e.minutes, 0, 1440),
+    goal: cleanStr(e.goal, 500), k1: cleanStr(e.k1, 500), k2: cleanStr(e.k2, 500), k3: cleanStr(e.k3, 500),
+    summary: cleanStr(e.summary, 5000), questions: cleanStr(e.questions, 2000), apply: cleanStr(e.apply, 2000), quote: cleanStr(e.quote, 1000),
+    rating: cleanInt(e.rating, 1, 5), recall: e.recall === true,
+    step, nextReview: cleanDate(e.nextReview) || (step < 4 ? addDays(date, 1) : null), lastReviewed: cleanDate(e.lastReviewed),
+    created: cleanStamp(e.created), updatedAt: cleanStamp(e.updatedAt), startedAt: cleanStamp(e.startedAt)
+  };
+}
+const cleanEntries = list => Array.isArray(list) ? list.map(sanitizeEntry).filter(Boolean) : [];
 
 const EXAMPLE = {
   id: "example", example: true, date: todayStr(), book: "Atomic Habits", chapter: "บทที่ 1", pFrom: 1, pTo: 24, minutes: 30,
@@ -63,7 +100,7 @@ const lsDel = k => { try { localStorage.removeItem(k); } catch {} };
 const cacheKey = () => mode === "account" ? `${STORAGE_KEY}:${user.id}` : STORAGE_KEY;
 const pendingKey = () => `reading-journal-pending:${user.id}`;
 
-function load() { return lsGet(cacheKey(), []); }
+function load() { return cleanEntries(lsGet(cacheKey(), [])); }
 function persist() {
   if (lsSet(cacheKey(), entries)) return true;
   toast("บันทึกไม่สำเร็จ พื้นที่ในเครื่องอาจเต็ม");
@@ -159,7 +196,7 @@ async function pull() {
   if (p.up.length || p.del.length) return; // ยังส่งไม่ครบ อย่าเพิ่งทับข้อมูลในเครื่อง
   const { data, error } = await sb.from("entries").select("id, data");
   if (error) { syncError = true; setSync(); return; }
-  entries = data.map(r => ({ ...r.data, id: r.id }));
+  entries = cleanEntries(data.map(r => ({ ...r.data, id: r.id })));
   persist();
   serverSynced = true;
   if (!goalPending()) {
@@ -180,6 +217,7 @@ function setAuthMode(m) {
   $("authSubmit").textContent = m === "forgot" ? "ส่งลิงก์ตั้งรหัสผ่านใหม่" : t;
   $("pwLabel").hidden = m === "forgot";
   $("authPassword").autocomplete = m === "signup" ? "new-password" : "current-password";
+  $("pwHint").hidden = m !== "signup";
   $("toggleMode").textContent = m === "signin" ? "ยังไม่มีบัญชี? สมัครสมาชิก" : "มีบัญชีแล้ว? เข้าสู่ระบบ";
   $("forgotBtn").hidden = m !== "signin";
   $("authIntro").textContent = m === "forgot"
@@ -196,7 +234,7 @@ function thaiAuthError(err) {
   if (m.includes("invalid login")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
   if (m.includes("email not confirmed")) return "ยังไม่ได้ยืนยันอีเมล เปิดลิงก์ยืนยันในอีเมลก่อน แล้วลองเข้าสู่ระบบอีกครั้ง";
   if (m.includes("already registered")) return "อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบแทน";
-  if (m.includes("password")) return "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร";
+  if (m.includes("password")) return "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และไม่ใช่รหัสที่เดาง่าย";
   if (m.includes("rate limit") || err?.status === 429) return "ลองหลายครั้งเกินไป รอสักครู่แล้วลองใหม่";
   if (m.includes("fetch") || m.includes("network")) return "เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่";
   return "ทำรายการไม่สำเร็จ: " + (err?.message || "ไม่ทราบสาเหตุ");
@@ -212,7 +250,9 @@ $("authForm").addEventListener("submit", async ev => {
   const email = $("authEmail").value.trim();
   const password = $("authPassword").value;
   if (!/^\S+@\S+\.\S+$/.test(email)) { authMsg("กรอกอีเมลให้ถูกต้อง", true); return; }
-  if (authMode !== "forgot" && password.length < 6) { authMsg("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร", true); return; }
+  // สมัครใหม่ต้อง 8 ตัวขึ้นไป (เข้าสู่ระบบไม่บังคับ เผื่อบัญชีที่ตั้งไว้ก่อนหน้า)
+  if (authMode === "signup" && password.length < 8) { authMsg("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร", true); return; }
+  if (authMode === "signin" && !password) { authMsg("กรอกรหัสผ่าน", true); return; }
   const btn = $("authSubmit");
   btn.disabled = true; authMsg("กำลังดำเนินการ…");
   const redirectTo = location.origin + location.pathname;
@@ -240,7 +280,7 @@ $("authForm").addEventListener("submit", async ev => {
 $("recoveryForm").addEventListener("submit", async ev => {
   ev.preventDefault();
   const pw = $("newPassword").value;
-  if (pw.length < 6) { $("recoveryMsg").textContent = "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"; return; }
+  if (pw.length < 8) { $("recoveryMsg").textContent = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"; return; }
   const { error } = await sb.auth.updateUser({ password: pw });
   if (error) { $("recoveryMsg").textContent = thaiAuthError(error); return; }
   $("recoveryForm").hidden = true;
@@ -298,7 +338,7 @@ $("signOutBtn").addEventListener("click", async () => {
 });
 
 // บันทึกที่เขียนไว้ตอนยังไม่ล็อกอิน
-function guestEntries() { return lsGet(STORAGE_KEY, []); }
+function guestEntries() { return cleanEntries(lsGet(STORAGE_KEY, [])); }
 function renderMigrate() {
   const list = mode === "account" ? guestEntries() : [];
   const skip = lsGet(MIGRATE_SKIP_KEY, false);
@@ -310,7 +350,7 @@ $("migrateBtn").addEventListener("click", () => {
   for (const e of list) if (!entries.some(x => x.id === e.id)) upsert({ ...e });
   lsDel(STORAGE_KEY);
   // หนังสือในชั้นที่สร้างไว้ก่อนล็อกอิน ย้ายตามไปด้วย
-  const guestBooks = lsGet("reading-journal-books", []);
+  const guestBooks = (lsGet("reading-journal-books", []) || []).map(sanitizeBook).filter(Boolean);
   if (guestBooks.length) {
     saveBooks(mergeBooks(getAllBooks(), guestBooks));
     lsDel("reading-journal-books");
@@ -440,7 +480,21 @@ const booksKey = () => mode === "account" ? `reading-journal-books:${user.id}` :
 const yearGoalKey = () => mode === "account" ? `reading-journal-year-goal:${user.id}` : "reading-journal-year-goal";
 const normTitle = s => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
 // เก็บหนังสือที่ลบไว้เป็นเครื่องหมาย deleted เพื่อไม่ให้เครื่องอื่นซิงก์กลับมา
-const getAllBooks = () => lsGet(booksKey(), []);
+const getAllBooks = () => { const v = lsGet(booksKey(), []); return Array.isArray(v) ? v.map(sanitizeBook).filter(Boolean) : []; };
+function sanitizeBook(b) {
+  if (!b || typeof b !== "object" || typeof b.id !== "string" || !ID_RE.test(b.id)) return null;
+  const title = cleanStr(b.title, 200).trim();
+  if (b.deleted) return { id: b.id, title, deleted: true, updatedAt: cleanStamp(b.updatedAt) };
+  if (!title) return null;
+  return {
+    id: b.id, title, author: cleanStr(b.author, 200),
+    category: CATEGORIES.some(c => c[0] === b.category) ? b.category : "",
+    totalPages: cleanInt(b.totalPages, 1, 20000),
+    status: ["reading", "want", "done"].includes(b.status) ? b.status : "want",
+    startedAt: cleanDate(b.startedAt), finishedAt: cleanDate(b.finishedAt),
+    cover: cleanCover(b.cover), createdAt: cleanStamp(b.createdAt), updatedAt: cleanStamp(b.updatedAt)
+  };
+}
 const getBooks = () => getAllBooks().filter(b => !b.deleted);
 // รวมรายการหนังสือจากสองแหล่ง: id เดียวกันใช้ฉบับที่แก้ล่าสุด ชื่อซ้ำกันเก็บไว้เล่มเดียว
 function mergeBooks(a, b) {
@@ -503,7 +557,7 @@ function settingsPayload() { return { goal: getGoal(), books: getAllBooks(), yea
 function applySettingsFromServer(d) {
   const g = d?.goal;
   if (g && Number.isFinite(+g.minutes) && Array.isArray(g.days)) lsSet(goalKey(), { minutes: +g.minutes, days: g.days });
-  if (Array.isArray(d?.books)) lsSet(booksKey(), mergeBooks(getAllBooks(), d.books));
+  if (Array.isArray(d?.books)) lsSet(booksKey(), mergeBooks(getAllBooks(), d.books.map(sanitizeBook).filter(Boolean)));
   if (d?.yearGoal && +d.yearGoal.books >= 1) lsSet(yearGoalKey(), { books: Math.round(+d.yearGoal.books), pages: +d.yearGoal.pages >= 1 ? Math.round(+d.yearGoal.pages) : undefined });
 }
 
@@ -850,6 +904,7 @@ function lastBackupText() {
 }
 $("importFile").addEventListener("change", async ev => {
   const file = ev.target.files[0];
+  if (file && file.size > 30 * 1024 * 1024) { ev.target.value = ""; $("backupMsg").textContent = "ไฟล์ใหญ่เกินไป (เกิน 30 MB) ไม่น่าใช่ไฟล์สำรองของแอปนี้"; return; }
   ev.target.value = "";
   if (!file) return;
   try {
@@ -857,10 +912,11 @@ $("importFile").addEventListener("change", async ev => {
     const list = Array.isArray(data) ? data : data.entries;
     if (!Array.isArray(list)) throw new Error("format");
     let added = 0;
-    for (const e of list) {
-      if (!e || typeof e.id !== "string" || typeof e.book !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(e.date)) continue;
+    for (const raw of list.slice(0, 50000)) {
+      const e = sanitizeEntry(raw);
+      if (!e || !e.book) continue;
       if (!entries.some(x => x.id === e.id)) added++;
-      upsert({ ...e, step: Number.isInteger(e.step) ? e.step : 0, nextReview: e.nextReview || addDays(e.date, 1) });
+      upsert(e);
     }
     const g = data.goal;
     if (g && Number.isFinite(+g.minutes) && +g.minutes >= 1 && Array.isArray(g.days) && g.days.length) {
@@ -870,8 +926,9 @@ $("importFile").addEventListener("change", async ev => {
     let booksAdded = 0;
     if (Array.isArray(data.books)) {
       const list = getAllBooks();
-      for (const b of data.books) {
-        if (!b || typeof b.id !== "string" || typeof b.title !== "string" || !b.title.trim()) continue;
+      for (const raw of data.books.slice(0, 5000)) {
+        const b = sanitizeBook(raw);
+        if (!b || b.deleted) continue;
         const i = list.findIndex(x => x.id === b.id || normTitle(x.title) === normTitle(b.title));
         if (i >= 0) list[i] = { ...list[i], ...b, id: list[i].id }; else { list.push(b); booksAdded++; }
       }

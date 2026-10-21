@@ -56,7 +56,9 @@ function boardError(err) {
   if (m.includes("fetch") || m.includes("network") || !navigator.onLine) return "เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่";
   if (m.includes("row-level security") || err?.code === "42501") return "ไม่มีสิทธิ์ทำรายการนี้ ลองออกจากระบบแล้วเข้าใหม่";
   if (err?.code === "42P01" || m.includes("does not exist")) return "ยังไม่ได้สร้างตารางเว็บบอร์ด ผู้ดูแลต้องรัน supabase/board.sql ก่อน";
-  if (m.includes("rate_limit")) return m.includes("comments") ? "วันนี้แสดงความคิดเห็นครบ 50 ข้อความแล้ว ลองใหม่พรุ่งนี้" : "วันนี้โพสต์รีวิวครบ 10 เรื่องแล้ว ลองใหม่พรุ่งนี้";
+  if (m.includes("rate_limit")) return m.includes("comments") ? "วันนี้แสดงความคิดเห็นครบ 50 ข้อความแล้ว ลองใหม่พรุ่งนี้"
+    : m.includes("reports") ? "วันนี้รายงานครบจำนวนแล้ว ลองใหม่พรุ่งนี้" : "วันนี้โพสต์รีวิวครบ 10 เรื่องแล้ว ลองใหม่พรุ่งนี้";
+  if (err?.code === "23505") return "คุณรายงานเรื่องนี้ไปแล้ว ผู้ดูแลจะตรวจสอบให้";
   return "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง";
 }
 // กดสองครั้งเพื่อยืนยัน: ครั้งแรกเปลี่ยนข้อความปุ่ม ครั้งที่สองคืนค่า true
@@ -136,7 +138,8 @@ async function fetchList(reset) {
   $("bState").textContent = "กำลังโหลด…";
   let q = sb.from("reviews").select(LIST_FIELDS);
   if (board.cat) q = q.eq("category", board.cat);
-  const term = board.q.replace(/[,()%*\\:]/g, " ").trim();
+  // ตัดอักขระพิเศษของตัวกรอง PostgREST ออก กันคำค้นไปแทรกเงื่อนไขอื่น
+  const term = board.q.replace(/[,()%*\\:"']/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
   if (term) q = q.or(`title.ilike.%${term}%,book_title.ilike.%${term}%,book_author.ilike.%${term}%`);
   q = board.sort === "top"
     ? q.order("rating", { ascending: false }).order("created_at", { ascending: false })

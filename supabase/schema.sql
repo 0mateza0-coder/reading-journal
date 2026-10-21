@@ -48,3 +48,23 @@ language sql security definer set search_path = public as $$
 $$;
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- ---------- จำกัดขนาดข้อมูล (กันการใช้พื้นที่เกินจำเป็น) ----------
+alter table public.entries drop constraint if exists entries_id_len;
+alter table public.entries add constraint entries_id_len check (char_length(id) between 1 and 64);
+alter table public.entries drop constraint if exists entries_data_size;
+alter table public.entries add constraint entries_data_size check (octet_length(data::text) <= 65536);
+alter table public.settings drop constraint if exists settings_data_size;
+alter table public.settings add constraint settings_data_size check (octet_length(data::text) <= 3000000);
+
+-- บันทึกได้ไม่เกิน 20,000 รายการต่อคน
+create or replace function public.limit_entries_per_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if (select count(*) from public.entries where user_id = new.user_id) >= 20000 then
+    raise exception 'limit: entries per user';
+  end if;
+  return new;
+end $$;
+drop trigger if exists entries_limit on public.entries;
+create trigger entries_limit before insert on public.entries for each row execute function public.limit_entries_per_user();
