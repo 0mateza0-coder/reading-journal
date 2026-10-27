@@ -66,6 +66,10 @@ main, .top { max-width: 640px; margin: 0 auto; }
 h1 { font-family: var(--display); font-weight: 700; font-size: 1.7rem; margin: 0; line-height: 1.25; letter-spacing: -.005em; text-wrap: balance; }
 h2 { font-family: var(--display); font-weight: 700; font-size: 1.12rem; margin: 0; line-height: 1.4; }
 h3 { text-wrap: balance; }
+/* ป้าย "เวอร์ชัน demo" ต่อท้ายชื่อแอป */
+.title-wrap { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.demo-badge { font-size: .72rem; font-weight: 600; line-height: 1; padding: 5px 9px; border-radius: 999px; color: var(--accent); border: 1px solid currentColor; white-space: nowrap; }
+.demo-badge[hidden] { display: none; }
 .top-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .sync { margin: 0; font-size: .76rem; color: var(--muted); }
 .sync.warn { color: var(--due); font-weight: 600; }

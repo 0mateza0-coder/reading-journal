@@ -487,6 +487,7 @@ function go(view) {
   $("settingsBtn").classList.toggle("on", view === "settings");
   $("profileBtn").classList.toggle("on", view === "profile");
   $("viewTitle").textContent = view === "write" && editingId ? "แก้ไขบันทึก" : TITLES[view];
+  $("demoBadge").hidden = TITLES[view] !== TITLES.home; // ป้ายเวอร์ชันทดลอง แสดงคู่กับชื่อแอปเท่านั้น
   window.scrollTo(0, 0);
   render();
 }
