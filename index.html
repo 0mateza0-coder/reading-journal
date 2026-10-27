@@ -34,7 +34,7 @@
         <p class="note" id="authIntro">บันทึกจะเก็บไว้ในบัญชีของคุณ เปิดได้จากทุกเครื่อง</p>
         <form id="authForm" class="stack" novalidate>
           <label>อีเมล<input type="email" id="authEmail" autocomplete="email" inputmode="email" required></label>
-          <label id="pwLabel">รหัสผ่าน <small id="pwHint">อย่างน้อย 8 ตัวอักษร</small>
+          <label id="pwLabel">รหัสผ่าน <small id="pwHint">อย่างน้อย 8 ตัว มีทั้งตัวอักษรภาษาอังกฤษและตัวเลข</small>
             <input type="password" id="authPassword" autocomplete="current-password" required></label>
           <button class="primary" type="submit" id="authSubmit">เข้าสู่ระบบ</button>
         </form>
@@ -51,7 +51,7 @@
 
       <form id="recoveryForm" class="card stack" hidden novalidate>
         <h2>ตั้งรหัสผ่านใหม่</h2>
-        <label>รหัสผ่านใหม่ <small>อย่างน้อย 8 ตัวอักษร</small>
+        <label>รหัสผ่านใหม่ <small>อย่างน้อย 8 ตัว มีทั้งตัวอักษรภาษาอังกฤษและตัวเลข</small>
           <input type="password" id="newPassword" autocomplete="new-password" minlength="8" required></label>
         <button class="primary" type="submit">บันทึกรหัสผ่านใหม่</button>
         <p class="msg" id="recoveryMsg" role="status"></p>

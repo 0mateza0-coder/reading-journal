@@ -229,12 +229,13 @@ function authMsg(text, isError = false) {
   $("authMsg").textContent = text;
   $("authMsg").classList.toggle("error", isError);
 }
+const strongPassword = pw => pw.length >= 8 && /[A-Za-z]/.test(pw) && /\d/.test(pw);
 function thaiAuthError(err) {
   const m = (err?.message || "").toLowerCase();
   if (m.includes("invalid login")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
   if (m.includes("email not confirmed")) return "ยังไม่ได้ยืนยันอีเมล เปิดลิงก์ยืนยันในอีเมลก่อน แล้วลองเข้าสู่ระบบอีกครั้ง";
   if (m.includes("already registered")) return "อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบแทน";
-  if (m.includes("password")) return "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และไม่ใช่รหัสที่เดาง่าย";
+  if (m.includes("password")) return "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว และมีทั้งตัวอักษรภาษาอังกฤษและตัวเลข";
   if (m.includes("rate limit") || err?.status === 429) return "ลองหลายครั้งเกินไป รอสักครู่แล้วลองใหม่";
   if (m.includes("fetch") || m.includes("network")) return "เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่";
   return "ทำรายการไม่สำเร็จ: " + (err?.message || "ไม่ทราบสาเหตุ");
@@ -251,7 +252,8 @@ $("authForm").addEventListener("submit", async ev => {
   const password = $("authPassword").value;
   if (!/^\S+@\S+\.\S+$/.test(email)) { authMsg("กรอกอีเมลให้ถูกต้อง", true); return; }
   // สมัครใหม่ต้อง 8 ตัวขึ้นไป (เข้าสู่ระบบไม่บังคับ เผื่อบัญชีที่ตั้งไว้ก่อนหน้า)
-  if (authMode === "signup" && password.length < 8) { authMsg("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร", true); return; }
+  // ต้องตรงกับที่ตั้งไว้ใน Supabase (Minimum length 8 + Letters and digits)
+  if (authMode === "signup" && !strongPassword(password)) { authMsg("รหัสผ่านต้องยาวอย่างน้อย 8 ตัว และมีทั้งตัวอักษรภาษาอังกฤษและตัวเลข", true); return; }
   if (authMode === "signin" && !password) { authMsg("กรอกรหัสผ่าน", true); return; }
   const btn = $("authSubmit");
   btn.disabled = true; authMsg("กำลังดำเนินการ…");
@@ -280,7 +282,7 @@ $("authForm").addEventListener("submit", async ev => {
 $("recoveryForm").addEventListener("submit", async ev => {
   ev.preventDefault();
   const pw = $("newPassword").value;
-  if (pw.length < 8) { $("recoveryMsg").textContent = "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"; return; }
+  if (!strongPassword(pw)) { $("recoveryMsg").textContent = "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว และมีทั้งตัวอักษรภาษาอังกฤษและตัวเลข"; return; }
   const { error } = await sb.auth.updateUser({ password: pw });
   if (error) { $("recoveryMsg").textContent = thaiAuthError(error); return; }
   $("recoveryForm").hidden = true;
