@@ -224,6 +224,9 @@ function setAuthMode(m) {
   $("termsAgree").checked = false; // ต้องติ๊กยอมรับใหม่ทุกครั้งที่เปิดหน้าสมัคร
   $("toggleMode").textContent = m === "signin" ? "ยังไม่มีบัญชี? สมัครสมาชิก" : "มีบัญชีแล้ว? เข้าสู่ระบบ";
   $("forgotBtn").hidden = m !== "signin";
+  $("googleBtn").hidden = m === "forgot";
+  document.querySelector(".or-line").hidden = m === "forgot";
+  document.querySelector(".google-note").hidden = m === "forgot";
   $("authIntro").textContent = m === "forgot"
     ? "ใส่อีเมลที่ใช้สมัคร ระบบจะส่งลิงก์สำหรับตั้งรหัสผ่านใหม่ไปให้"
     : "บันทึกจะเก็บไว้ในบัญชีของคุณ เปิดได้จากทุกเครื่อง";
@@ -246,6 +249,18 @@ function thaiAuthError(err) {
 }
 
 $("toggleMode").addEventListener("click", () => setAuthMode(authMode === "signin" ? "signup" : "signin"));
+// เข้าสู่ระบบด้วย Google: ไปหน้า Google แล้วกลับมาที่แอป (Supabase จัดการให้)
+// ผู้ใช้ใหม่ที่มาทาง Google จะเห็นการ์ดขอยอมรับข้อตกลงในหน้าแรก (ยังไม่มี terms_version)
+$("googleBtn").addEventListener("click", async () => {
+  if (!sb) { authMsg("โหลดระบบล็อกอินไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วเปิดแอปใหม่", true); return; }
+  $("googleBtn").disabled = true;
+  authMsg("กำลังไปหน้าเข้าสู่ระบบของ Google…");
+  const { error } = await sb.auth.signInWithOAuth({ provider: "google", options: { redirectTo: location.origin + location.pathname } });
+  if (error) {
+    $("googleBtn").disabled = false;
+    authMsg(/not enabled|unsupported provider/i.test(error.message || "") ? "ยังไม่ได้เปิดการเข้าสู่ระบบด้วย Google ใช้อีเมลไปก่อนได้" : thaiAuthError(error), true);
+  }
+});
 $("forgotBtn").addEventListener("click", () => setAuthMode("forgot"));
 $("guestBtn").addEventListener("click", () => { lsSet(GUEST_CHOSEN_KEY, true); enterGuest(); });
 
