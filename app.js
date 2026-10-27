@@ -1238,7 +1238,9 @@ if ("serviceWorker" in navigator && location.protocol !== "file:") {
   let reloading = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!hadController || reloading) return;
-    const typing = (current === "write" && ($("book").value || $("summary").value)) || current === "compose" || current === "login";
+    // รีโหลดเองได้ ยกเว้นกำลังพิมพ์ค้างอยู่ (บันทึก / รีวิว / ช่องล็อกอินที่กรอกแล้ว / ตั้งรหัสผ่านใหม่)
+    const typing = (current === "write" && ($("book").value || $("summary").value)) || current === "compose"
+      || (current === "login" && ($("authEmail").value || $("authPassword").value || !$("recoveryForm").hidden));
     if (!typing) { reloading = true; location.reload(); return; }
     $("updateBar").hidden = false;
   });
