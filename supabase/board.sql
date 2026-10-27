@@ -191,3 +191,15 @@ begin
 end $$;
 drop trigger if exists reports_rate_limit on public.reports;
 create trigger reports_rate_limit before insert on public.reports for each row execute function public.limit_reports();
+
+-- ---------- สิทธิ์การเข้าถึงผ่าน Data API ----------
+-- จำเป็นเมื่อปิด "Automatically expose new tables" ตอนสร้างโปรเจกต์
+-- ผู้ไม่ล็อกอิน (anon) อ่านได้อย่างเดียว ส่วนการเขียนต้องล็อกอิน และยังถูกคุมด้วย Row Level Security
+grant usage on schema public to anon, authenticated;
+grant select on public.profiles, public.reviews, public.comments to anon, authenticated;
+grant insert, update on public.profiles to authenticated;
+grant insert, update, delete on public.reviews to authenticated;
+grant insert, delete on public.comments to authenticated;
+grant select, insert, delete on public.reports to authenticated;
+grant select on public.admins to authenticated;
+grant execute on function public.is_admin() to anon, authenticated;

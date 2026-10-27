@@ -68,3 +68,11 @@ begin
 end $$;
 drop trigger if exists entries_limit on public.entries;
 create trigger entries_limit before insert on public.entries for each row execute function public.limit_entries_per_user();
+
+-- ---------- สิทธิ์การเข้าถึงผ่าน Data API ----------
+-- จำเป็นเมื่อปิด "Automatically expose new tables" ตอนสร้างโปรเจกต์ (ปลอดภัยกว่า)
+-- สิทธิ์นี้แค่เปิดประตู ส่วนใครเห็น/แก้แถวไหนได้ ยังถูกคุมด้วย Row Level Security ด้านบน
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.entries to authenticated;
+grant select, insert, update on public.settings to authenticated;
+grant execute on function public.delete_my_account() to authenticated;
