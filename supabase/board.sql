@@ -203,3 +203,12 @@ grant insert, delete on public.comments to authenticated;
 grant select, insert, delete on public.reports to authenticated;
 grant select on public.admins to authenticated;
 grant execute on function public.is_admin() to anon, authenticated;
+
+-- ---------- โปรไฟล์: รูปโปรไฟล์ (อีโมจิ) และระดับนักอ่าน ----------
+-- ระดับคำนวณในแอปจากสถิติการอ่าน แล้วบันทึกไว้เพื่อแสดงข้างชื่อในเว็บบอร์ด (เป็นของตกแต่ง ไม่ใช่สิทธิ์พิเศษ)
+alter table public.profiles add column if not exists avatar text not null default '';
+alter table public.profiles add column if not exists level smallint not null default 1;
+alter table public.profiles drop constraint if exists profiles_avatar_len;
+alter table public.profiles add constraint profiles_avatar_len check (char_length(avatar) <= 16 and avatar !~ '[<>"''&[:cntrl:]]');
+alter table public.profiles drop constraint if exists profiles_level_range;
+alter table public.profiles add constraint profiles_level_range check (level between 1 and 7);

@@ -1,6 +1,6 @@
 // เปลี่ยนเลขเวอร์ชันทุกครั้งที่แก้ไฟล์แอป เพื่อให้เครื่องที่ติดตั้งไว้โหลดของใหม่
-const CACHE = "reading-journal-v22";
-const SHELL = ["./", "index.html", "theme-init.js", "app.css", "config.js", "app.js", "board.js", "shelf.js", "onboard.js", "privacy.html", "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
+const CACHE = "reading-journal-v23";
+const SHELL = ["./", "index.html", "theme-init.js", "app.css", "config.js", "app.js", "board.js", "shelf.js", "onboard.js", "profile.js", "privacy.html", "manifest.webmanifest", "icons/icon.svg", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
   // cache: "reload" = ดึงไฟล์ใหม่จากเซิร์ฟเวอร์เสมอ ไม่ใช้ไฟล์เก่าในแคชของเบราว์เซอร์

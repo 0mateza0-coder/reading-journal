@@ -5,7 +5,20 @@
 // CATEGORIES และ catLabel อยู่ใน app.js (ใช้ร่วมกับชั้นหนังสือ)
 const BOARD_PAGE = 20;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const LIST_FIELDS = "id,title,book_title,book_author,category,rating,body,images,created_at,user_id,profiles(display_name),comments(count)";
+// คอลัมน์โปรไฟล์ที่ดึงมาแสดง ถ้ายังไม่ได้รัน SQL ส่วนรูป/ระดับ (ไม่มีคอลัมน์) จะถอยไปใช้แค่ชื่อ
+const PROFILE_COLS = ["display_name,avatar,level", "display_name"];
+let profileColsIdx = 0;
+const profSel = () => `profiles(${PROFILE_COLS[profileColsIdx]})`;
+const listFields = () => `id,title,book_title,book_author,category,rating,body,images,created_at,user_id,${profSel()},comments(count)`;
+// เรียกคำสั่งที่ใช้คอลัมน์โปรไฟล์ ถ้าเจอ "ไม่มีคอลัมน์" ให้ลองใหม่แบบดึงแค่ชื่อ
+async function withProfileCols(run) {
+  const res = await run();
+  if (res.error && profileColsIdx === 0 && (res.error.code === "42703" || res.error.code === "PGRST200" || /column/i.test(res.error.message || ""))) {
+    profileColsIdx = 1;
+    return run();
+  }
+  return res;
+}
 
 // ---------- รูปภาพ (Supabase Storage) ----------
 const IMG_BUCKET = "review-images";
@@ -42,6 +55,14 @@ const armed = {};     // ปุ่มที่ต้องแตะสองค�
 
 const signedIn = () => !!sb && mode === "account" && !!user;
 const nameOf = r => r?.profiles?.display_name || "ผู้ใช้";
+// ชื่อผู้เขียน + รูปโปรไฟล์ + ระดับนักอ่าน (ข้อความทั้งหมดผ่าน esc แล้ว)
+function nameTag(r, bold = false) {
+  const p = r?.profiles || {};
+  const av = typeof avatarSafe === "function" ? avatarSafe(p.avatar) : "";
+  const lv = Number.isInteger(p.level) && p.level >= 1 && p.level <= 7 ? p.level : null;
+  const name = bold ? `<b>${esc(nameOf(r))}</b>` : esc(nameOf(r));
+  return `${av ? `<span class="av-sm" aria-hidden="true">${esc(av)}</span>` : ""}${name}${lv ? ` <span class="lv-chip" title="ระดับนักอ่าน">Lv.${lv}</span>` : ""}`;
+}
 const starText = n => "★".repeat(n) + "☆".repeat(5 - n);
 function relTime(iso) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -76,20 +97,33 @@ async function loadProfile() {
   if (myProfile?.uid === user.id) return myProfile;
   const uid = user.id;
   const [p, a] = await Promise.all([
-    sb.from("profiles").select("display_name").eq("id", uid).maybeSingle(),
+    withProfileCols(() => sb.from("profiles").select(PROFILE_COLS[profileColsIdx]).eq("id", uid).maybeSingle()),
     sb.from("admins").select("user_id").eq("user_id", uid).maybeSingle()
   ]);
   if (user?.id !== uid) return null;
-  myProfile = { uid, name: p.data?.display_name || "", admin: !!a.data };
+  myProfile = { uid, name: p.data?.display_name || "", avatar: p.data?.avatar || "", level: p.data?.level || 1, admin: !!a.data, exists: !!p.data };
   return myProfile;
 }
-async function saveProfileName(name) {
-  name = name.trim();
-  if (!name || name.length > 40) throw { message: "name" };
-  const { error } = await sb.from("profiles").upsert({ id: user.id, display_name: name }, { onConflict: "id" });
+// บันทึกโปรไฟล์ (ชื่อ / รูป / ระดับ) ส่งเฉพาะช่องที่ระบุ
+async function saveMyProfile(fields) {
+  const row = { id: user.id };
+  if ("name" in fields) {
+    const name = String(fields.name || "").trim();
+    if (!name || name.length > 40 || /[\u0000-\u001f]/.test(name)) throw { message: "name" };
+    row.display_name = name;
+  } else if (!myProfile?.name) {
+    return; // ยังไม่มีชื่อ = ยังไม่มีแถวโปรไฟล์ ให้ตั้งชื่อก่อน
+  } else row.display_name = myProfile.name;
+  if (profileColsIdx === 0) {
+    if ("avatar" in fields) row.avatar = fields.avatar || "";
+    if ("level" in fields) row.level = fields.level;
+  }
+  const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
   if (error) throw error;
-  myProfile = { ...(myProfile || { uid: user.id, admin: false }), uid: user.id, name };
+  myProfile = { ...(myProfile || { uid: user.id, admin: false }), uid: user.id, name: row.display_name,
+    ...("avatar" in row ? { avatar: row.avatar } : {}), ...("level" in row ? { level: row.level } : {}), exists: true };
 }
+const saveProfileName = name => saveMyProfile({ name });
 
 $("profileForm").addEventListener("submit", async ev => {
   ev.preventDefault();
@@ -113,7 +147,7 @@ function reviewCard(r) {
     <h3>${esc(r.title)}</h3>
     <p class="book">📖 ${esc(r.book_title)}${r.book_author ? ` · ${esc(r.book_author)}` : ""}</p>
     <p class="excerpt">${esc(excerpt)}</p>
-    <p class="meta">${esc(nameOf(r))} · ${esc(relTime(r.created_at))} · 💬 ${n}</p>
+    <p class="meta">${nameTag(r)} · ${esc(relTime(r.created_at))} · 💬 ${n}</p>
   </a>`;
 }
 
@@ -136,16 +170,19 @@ async function fetchList(reset) {
   board.loading = true;
   $("bState").dataset.kind = "";
   $("bState").textContent = "กำลังโหลด…";
-  let q = sb.from("reviews").select(LIST_FIELDS);
-  if (board.cat) q = q.eq("category", board.cat);
-  // ตัดอักขระพิเศษของตัวกรอง PostgREST ออก กันคำค้นไปแทรกเงื่อนไขอื่น
-  const term = board.q.replace(/[,()%*\\:"']/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
-  if (term) q = q.or(`title.ilike.%${term}%,book_title.ilike.%${term}%,book_author.ilike.%${term}%`);
-  q = board.sort === "top"
-    ? q.order("rating", { ascending: false }).order("created_at", { ascending: false })
-    : q.order("created_at", { ascending: false });
-  const from = board.items.length;
-  const { data, error } = await q.range(from, from + BOARD_PAGE - 1);
+  const build = () => {
+    let q = sb.from("reviews").select(listFields());
+    if (board.cat) q = q.eq("category", board.cat);
+    // ตัดอักขระพิเศษของตัวกรอง PostgREST ออก กันคำค้นไปแทรกเงื่อนไขอื่น
+    const term = board.q.replace(/[,()%*\\:"']/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+    if (term) q = q.or(`title.ilike.%${term}%,book_title.ilike.%${term}%,book_author.ilike.%${term}%`);
+    q = board.sort === "top"
+      ? q.order("rating", { ascending: false }).order("created_at", { ascending: false })
+      : q.order("created_at", { ascending: false });
+    const from = board.items.length;
+    return q.range(from, from + BOARD_PAGE - 1);
+  };
+  const { data, error } = await withProfileCols(build);
   if (req !== board.req) return; // มีคำขอใหม่กว่าแล้ว
   board.loading = false;
   if (error) {
@@ -192,7 +229,7 @@ async function openPost(id) {
   $("pArticle").innerHTML = `<p class="note">กำลังโหลดรีวิว…</p>`;
   $("pActions").innerHTML = ""; $("pComments").innerHTML = "";
   if (!sb) { $("pArticle").innerHTML = `<p class="note">เว็บบอร์ดยังใช้ไม่ได้ ต้องเชื่อมต่อฐานข้อมูลออนไลน์ก่อน</p>`; renderCommentForm(); return; }
-  const { data, error } = await sb.from("reviews").select("*, profiles(display_name)").eq("id", id).maybeSingle();
+  const { data, error } = await withProfileCols(() => sb.from("reviews").select(`*, ${profSel()}`).eq("id", id).maybeSingle());
   if (openPostId !== id) return;
   if (error || !data) {
     postData = null;
@@ -214,7 +251,7 @@ function renderPost() {
     <div class="entry-head"><span class="chip">${esc(catLabel(r.category))}</span><span class="stars big-stars" aria-label="${r.rating} จาก 5 ดาว">${starText(r.rating)}</span></div>
     <h2 class="post-title">${esc(r.title)}</h2>
     <p class="book">📖 ${esc(r.book_title)}${r.book_author ? ` · ${esc(r.book_author)}` : ""}</p>
-    <p class="meta">โดย ${esc(nameOf(r))} · ${esc(relTime(r.created_at))}${edited ? " · แก้ไขแล้ว" : ""}</p>
+    <p class="meta">โดย ${nameTag(r)} · ${esc(relTime(r.created_at))}${edited ? " · แก้ไขแล้ว" : ""}</p>
     ${r.images?.length ? `<div class="gallery n${r.images.length}">${r.images.map((p, i) =>
       `<button type="button" class="g-img" data-zoom="${esc(imgUrl(p))}" aria-label="ดูรูปที่ ${i + 1} ขนาดใหญ่"><img src="${esc(imgUrl(p))}" alt="รูปประกอบรีวิว ${esc(r.book_title)} ${i + 1}" loading="lazy" decoding="async"></button>`).join("")}</div>` : ""}
     <div class="post-body">${esc(r.body)}</div>`;
@@ -238,8 +275,8 @@ function renderCommentForm() {
 
 async function loadComments(id) {
   $("pComments").innerHTML = `<p class="note">กำลังโหลดความคิดเห็น…</p>`;
-  const { data, error } = await sb.from("comments").select("id,body,created_at,user_id,profiles(display_name)")
-    .eq("review_id", id).order("created_at", { ascending: true }).limit(300);
+  const { data, error } = await withProfileCols(() => sb.from("comments").select(`id,body,created_at,user_id,${profSel()}`)
+    .eq("review_id", id).order("created_at", { ascending: true }).limit(300));
   if (openPostId !== id) return;
   if (error) { $("pComments").innerHTML = `<p class="note">${esc(boardError(error))}</p>`; return; }
   $("pCommentsTitle").textContent = `ความคิดเห็น (${data.length})`;
@@ -247,7 +284,7 @@ async function loadComments(id) {
   $("pComments").innerHTML = data.length ? data.map(c => {
     const mine = signedIn() && c.user_id === user.id;
     return `<div class="comment">
-      <p class="meta"><b>${esc(nameOf(c))}</b> · ${esc(relTime(c.created_at))}</p>
+      <p class="meta">${nameTag(c, true)} · ${esc(relTime(c.created_at))}</p>
       <p class="comment-body">${esc(c.body)}</p>
       <div class="entry-actions">
         ${mine || admin ? `<button class="small" data-del-comment="${esc(c.id)}">ลบ</button>` : ""}

@@ -22,6 +22,7 @@
     <h1 id="viewTitle">สมุดบันทึกการอ่าน</h1>
     <div class="top-right">
       <p class="sync" id="syncState" role="status"></p>
+      <button class="icon-btn avatar-btn" id="profileBtn" data-go="profile" aria-label="โปรไฟล์ (ยังไม่ได้เข้าสู่ระบบ)"><span id="profileBtnFace" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="9" r="4"/><path d="M4.5 20c1.4-3.6 4.2-5.4 7.5-5.4s6.1 1.8 7.5 5.4"/></svg></span><i class="online-dot" id="profileDot" hidden></i></button>
       <button class="icon-btn" id="settingsBtn" data-go="settings" aria-label="ตั้งค่า"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
     </div>
   </header>
@@ -438,6 +439,43 @@
       </form>
     </section>
 
+    <!-- โปรไฟล์ -->
+    <section id="view-profile" class="view" hidden>
+      <div class="card profile-card" id="pfCard">
+        <div class="pf-head">
+          <div class="pf-avatar" id="pfAvatar" aria-hidden="true"></div>
+          <div class="pf-id">
+            <h2 id="pfName"></h2>
+            <p class="meta" id="pfEmail"></p>
+            <span class="chip" id="pfStatus"></span>
+          </div>
+        </div>
+        <form id="pfForm" class="stack" novalidate hidden>
+          <label>ชื่อที่แสดง <small>คนอื่นเห็นชื่อนี้ในเว็บบอร์ด ไม่ต้องใช้ชื่อจริง</small>
+            <input id="pfNameInput" maxlength="40" autocomplete="nickname"></label>
+          <div>
+            <span class="lbl-like">รูปโปรไฟล์</span>
+            <div class="pf-avatars" id="pfAvatars" role="radiogroup" aria-label="เลือกรูปโปรไฟล์"></div>
+          </div>
+          <p class="msg error" id="pfMsg" role="status"></p>
+          <div class="actions"><button class="primary" type="submit" id="pfSave">บันทึกโปรไฟล์</button></div>
+        </form>
+        <div class="stack" id="pfGuest" hidden>
+          <p class="note">ยังไม่ได้เข้าสู่ระบบ บันทึกเก็บในเครื่องนี้เครื่องเดียว เข้าสู่ระบบเพื่อซิงก์ข้ามเครื่อง ตั้งชื่อ และเขียนรีวิวในเว็บบอร์ด</p>
+          <div class="actions"><button class="primary" id="pfLogin">เข้าสู่ระบบ / สมัครสมาชิก</button></div>
+        </div>
+      </div>
+
+      <div class="card stack level-card" id="pfLevel"></div>
+      <div class="stats four" id="pfStats"></div>
+      <div class="card stack" id="pfLadder"></div>
+
+      <div class="actions pf-actions">
+        <button data-go="settings">⚙️ ตั้งค่า</button>
+        <button id="pfSignOut" hidden>ออกจากระบบ</button>
+      </div>
+    </section>
+
     <!-- ทบทวน -->
     <section id="view-review" class="view" hidden>
       <div class="review card">
@@ -541,5 +579,6 @@
   <script src="board.js"></script>
   <script src="shelf.js"></script>
   <script src="onboard.js"></script>
+  <script src="profile.js"></script>
 </body>
 </html>

@@ -504,6 +504,50 @@ button.danger:disabled { background: var(--field); border-color: var(--line); co
 .legal a { color: var(--accent); }
 header .link.back { text-decoration: none; font-weight: 600; color: var(--accent); }
 
+/* ปุ่มโปรไฟล์มุมขวาบน */
+.avatar-btn { position: relative; overflow: visible; }
+.avatar-btn #profileBtnFace { display: grid; place-items: center; width: 100%; height: 100%; }
+.avatar-btn.signed-in { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.avatar-btn .face { font-size: 1.15rem; line-height: 1; font-weight: 700; color: var(--accent); }
+.online-dot { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: #2f9e5b; border: 2px solid var(--bg); }
+body.onboard #profileBtn { display: none; }
+
+/* หน้าโปรไฟล์ */
+.profile-card { display: grid; gap: 16px; }
+.pf-head { display: flex; gap: 14px; align-items: center; }
+.pf-avatar { flex: 0 0 72px; width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; font-size: 2.2rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border: 2px solid color-mix(in srgb, var(--gold) 50%, var(--line)); }
+.pf-id { display: grid; gap: 4px; min-width: 0; }
+.pf-id h2 { font-size: 1.3rem; overflow-wrap: anywhere; }
+.pf-id .chip { justify-self: start; }
+.pf-avatars { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.pf-avatars button { padding: 0; aspect-ratio: 1; font-size: 1.35rem; border-radius: 10px; background: var(--field); }
+.pf-avatars button.on { border: 2px solid var(--accent); background: var(--accent-soft); }
+@media (max-width: 380px) { .pf-avatars { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.level-card { background: linear-gradient(var(--paper), color-mix(in srgb, var(--gold-soft) 50%, var(--paper))); }
+.lv-head { display: flex; gap: 12px; align-items: center; }
+.lv-head > div { flex: 1; min-width: 0; }
+.lv-badge { flex: 0 0 52px; width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 1.8rem; background: var(--paper); border: 1px solid color-mix(in srgb, var(--gold) 45%, var(--line)); }
+.lv-xp { margin: 0; text-align: right; display: grid; line-height: 1.1; }
+.lv-xp b { font-family: var(--display); font-size: 1.5rem; color: var(--gold); font-variant-numeric: tabular-nums; }
+.lv-xp span { font-size: .72rem; color: var(--muted); }
+.lv-bar { height: 10px; }
+.lv-bar > span { background: var(--gold); }
+.xp-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.xp-list li { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; font-size: .88rem; }
+.xp-list b { color: var(--gold); font-variant-numeric: tabular-nums; text-align: right; }
+.xp-list small { grid-column: 1 / -1; color: var(--muted); font-size: .72rem; margin-top: -2px; }
+.ladder { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.ladder li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 10px; font-size: .88rem; color: var(--muted); }
+.ladder li.done { color: var(--ink); }
+.ladder li.now { background: var(--gold-soft); color: var(--ink); font-weight: 700; }
+.ld-icon { font-size: 1.15rem; text-align: center; }
+.ld-xp { font-size: .76rem; font-variant-numeric: tabular-nums; }
+.ld-mark { font-size: .76rem; color: var(--gold); font-weight: 700; min-width: 3.5em; text-align: right; }
+.pf-actions { justify-content: space-between; }
+/* ชื่อในเว็บบอร์ด */
+.av-sm { display: inline-grid; place-items: center; width: 1.45em; height: 1.45em; border-radius: 50%; background: var(--accent-soft); margin-right: 4px; font-size: .95em; vertical-align: -0.3em; }
+.lv-chip { font-size: .66rem; font-weight: 700; color: var(--gold); background: var(--gold-soft); border-radius: 999px; padding: 0 6px; vertical-align: .1em; }
+
 /* ---------- แถบเมนูล่าง ---------- */
 .tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;

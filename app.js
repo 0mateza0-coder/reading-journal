@@ -22,7 +22,7 @@ const TITLES = {
   login: "สมุดบันทึกการอ่าน", home: "สมุดบันทึกการอ่าน", write: "บันทึกวันนี้", calendar: "ปฏิทินการอ่าน",
   library: "คลังบันทึก", review: "ทบทวน", settings: "ตั้งค่า",
   board: "เว็บบอร์ดรีวิว", post: "รีวิวหนังสือ", compose: "เขียนรีวิว",
-  book: "หนังสือ", stats: "สถิติการอ่าน", welcome: "สมุดบันทึกการอ่าน"
+  book: "หนังสือ", stats: "สถิติการอ่าน", welcome: "สมุดบันทึกการอ่าน", profile: "โปรไฟล์"
 };
 // หน้าย่อยที่ให้ไฮไลต์แท็บไหนในแถบเมนู
 const TAB_OF = { post: "board", compose: "board", review: "home", book: "library", stats: "home" };
@@ -312,7 +312,7 @@ function enterGuest() {
 function enterAccount(u) {
   mode = "account";
   serverSynced = false;
-  user = { id: u.id, email: u.email };
+  user = { id: u.id, email: u.email, createdAt: u.created_at || null };
   lsSet(LAST_USER_KEY, user);
   lsDel(GUEST_CHOSEN_KEY);
   entries = load();
@@ -324,12 +324,20 @@ function enterAccount(u) {
 }
 
 $("signInBtn").addEventListener("click", () => showLogin("settings"));
+const hasUnsynced = () => { const p = getPending(); return p.up.length || p.del.length || goalPending(); };
 $("signOutBtn").addEventListener("click", async () => {
-  const p = getPending();
-  if (p.up.length || p.del.length || goalPending()) {
-    $("accountMsg").textContent = "ยังมีบันทึกที่ยังไม่ได้ซิงก์ เชื่อมต่ออินเทอร์เน็ตแล้วรอให้ขึ้นว่า “ซิงก์แล้ว” ก่อนออกจากระบบ";
-    flush();
-    return;
+  // มีข้อมูลค้างซิงก์: ส่งให้เสร็จก่อน (รอได้ถึง ~10 วินาที) แล้วค่อยออกจากระบบ
+  if (hasUnsynced() || syncing) {
+    $("accountMsg").textContent = "กำลังซิงก์ข้อมูลก่อนออกจากระบบ…";
+    for (let i = 0; i < 20 && (hasUnsynced() || syncing) && navigator.onLine; i++) {
+      if (!syncing) flush();
+      await new Promise(r => setTimeout(r, 500));
+    }
+    if (hasUnsynced()) {
+      $("accountMsg").textContent = "ยังซิงก์ไม่สำเร็จ เชื่อมต่ออินเทอร์เน็ตแล้วลองออกจากระบบอีกครั้ง (กันบันทึกที่ยังไม่ได้ซิงก์หาย)";
+      return;
+    }
+    $("accountMsg").textContent = "";
   }
   try { await sb?.auth.signOut(); } catch {}
   // ลบสำเนาในเครื่อง เพื่อไม่ให้คนอื่นที่ใช้เครื่องนี้เห็น
@@ -379,6 +387,7 @@ function go(view) {
     if (b.dataset.go === tab) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
   $("settingsBtn").classList.toggle("on", view === "settings");
+  $("profileBtn").classList.toggle("on", view === "profile");
   $("viewTitle").textContent = view === "write" && editingId ? "แก้ไขบันทึก" : TITLES[view];
   window.scrollTo(0, 0);
   render();
@@ -732,6 +741,7 @@ function render() {
   if (typeof onBoardRender === "function") onBoardRender(current);
   if (typeof onShelfRender === "function") onShelfRender(current);
   if (typeof onGuideRender === "function") onGuideRender(current);
+  if (typeof onProfileRender === "function") onProfileRender(current);
   renderTimer();
   updateBadge();
 }
