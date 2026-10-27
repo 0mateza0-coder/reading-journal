@@ -10,5 +10,5 @@ window.APP_CONFIG = {
   // กันบอตตอนล็อกอิน/สมัคร: "Site Key" จาก Cloudflare Turnstile (เปิดเผยได้)
   // ส่วน "Secret Key" ใส่ใน Supabase → Authentication → Attack Protection เท่านั้น
   // เว้นว่าง = ปิด (ถ้าเปิด CAPTCHA ใน Supabase ต้องใส่ค่านี้ก่อน ไม่งั้นล็อกอินด้วยอีเมลไม่ได้)
-  turnstileSiteKey: ""
+  turnstileSiteKey: "0x4AAAAAAFn6q-lH0Q_Qxq2g"
 };
