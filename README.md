@@ -38,6 +38,17 @@
 5. อัปโหลดโฟลเดอร์ขึ้น Netlify ใหม่
 
 ระบบล็อกอินใช้ **อีเมล + รหัสผ่าน** สมัครแล้วต้องเปิดลิงก์ยืนยันในอีเมลก่อน และมีปุ่มลืมรหัสผ่าน
+และ **เข้าสู่ระบบด้วย Google** (Authentication → Sign In / Providers → Google ใส่ Client ID/Secret จาก Google Cloud)
+
+### กันบอต (Cloudflare Turnstile)
+
+ป้องกันบอตสมัครสมาชิก เดารหัสผ่าน และส่งอีเมลลืมรหัสผ่านรัว ๆ (ไม่มีผลกับปุ่ม Google) **ทำตามลำดับนี้**:
+
+1. Cloudflare → Turnstile → Add widget ใส่โดเมนของเว็บ เลือกโหมด **Managed** จะได้ Site Key และ Secret Key
+2. ใส่ **Site Key** ใน `config.js` (`turnstileSiteKey`) แล้ว deploy
+3. Supabase → Authentication → Attack Protection → เปิด **Enable CAPTCHA protection** เลือก Turnstile แล้วใส่ **Secret Key** (ห้ามใส่ในไฟล์ของแอป)
+
+ต้องทำข้อ 2 ก่อนข้อ 3 ไม่งั้นล็อกอินด้วยอีเมลไม่ได้ ถ้าจะปิด ให้ปิดใน Supabase ก่อนแล้วค่อยลบ Site Key
 
 ### เว็บบอร์ดรีวิว
 

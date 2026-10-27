@@ -562,6 +562,9 @@ body.onboard #profileBtn { display: none; }
 .google-btn svg { width: 20px; height: 20px; }
 :root[data-theme="dark"] .google-btn { background: #131314; color: #e3e3e3; border-color: #8e918f; }
 .google-note { font-size: .76rem; text-align: center; }
+/* กล่องกันบอต: ว่างไว้ (ไม่กินที่) จนกว่า Cloudflare จะให้ผู้ใช้ยืนยัน */
+.captcha-box:empty { display: none; }
+.captcha-box iframe { max-width: 100%; }
 
 /* ---------- แถบเมนูล่าง ---------- */
 .tabs {

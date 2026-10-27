@@ -243,10 +243,64 @@ function thaiAuthError(err) {
   if (m.includes("email not confirmed")) return "ยังไม่ได้ยืนยันอีเมล เปิดลิงก์ยืนยันในอีเมลก่อน แล้วลองเข้าสู่ระบบอีกครั้ง";
   if (m.includes("already registered")) return "อีเมลนี้สมัครไว้แล้ว ลองเข้าสู่ระบบแทน";
   if (m.includes("password")) return "รหัสผ่านต้องยาวอย่างน้อย 8 ตัว และมีทั้งตัวอักษรภาษาอังกฤษและตัวเลข";
+  if (m.includes("captcha")) return "ตรวจสอบว่าไม่ใช่บอตไม่ผ่าน ลองกดอีกครั้ง ถ้ายังไม่ได้ให้รีเฟรชหน้า";
   if (m.includes("rate limit") || err?.status === 429) return "ลองหลายครั้งเกินไป รอสักครู่แล้วลองใหม่";
   if (m.includes("fetch") || m.includes("network")) return "เชื่อมต่ออินเทอร์เน็ตไม่ได้ ตรวจสอบการเชื่อมต่อแล้วลองใหม่";
   return "ทำรายการไม่สำเร็จ: " + (err?.message || "ไม่ทราบสาเหตุ");
 }
+
+// ---------- กันบอต (Cloudflare Turnstile) ----------
+// ทำงานเมื่อใส่ turnstileSiteKey ใน config.js และเปิด CAPTCHA ใน Supabase (Attack Protection)
+// ส่วนใหญ่ผู้ใช้ไม่ต้องกดอะไร กล่องจะโผล่มาเฉพาะเมื่อ Cloudflare ต้องการให้ยืนยัน
+// โทเค็นใช้ได้ครั้งเดียว จึงรีเซ็ตหลังส่งทุกครั้ง
+const captchaKey = configured ? String(cfg.turnstileSiteKey || "").trim() : "";
+let captchaWidget = null, captchaToken = "", captchaWaiters = [], captchaLoading = null;
+function captchaDone(token) {
+  captchaToken = token || "";
+  captchaWaiters.splice(0).forEach(w => w(captchaToken));
+}
+function initCaptcha() {
+  if (!captchaKey || captchaLoading) return captchaLoading;
+  captchaLoading = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  }).then(() => {
+    $("captchaBox").hidden = false;
+    captchaWidget = window.turnstile.render("#captchaBox", {
+      sitekey: captchaKey,
+      theme: document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+      language: "th",
+      appearance: "interaction-only",
+      size: "flexible",
+      "refresh-expired": "auto",
+      callback: captchaDone,
+      "before-interactive-callback": () => { if (captchaWaiters.length) authMsg("ติ๊กช่อง \"ยืนยันว่าคุณเป็นมนุษย์\" ด้านบนเพื่อดำเนินการต่อ"); },
+      "expired-callback": () => { captchaToken = ""; },
+      "error-callback": () => { captchaDone(""); return true; }
+    });
+  }).catch(err => { console.warn("captcha load failed", err); captchaLoading = null; });
+  return captchaLoading;
+}
+// รอโทเค็น (สูงสุด 2 นาที เผื่อต้องติ๊กยืนยัน) คืนค่า "" ถ้าไม่ได้
+async function getCaptchaToken() {
+  if (!captchaKey) return undefined;
+  await initCaptcha();
+  if (captchaWidget == null) return "";
+  if (captchaToken) return captchaToken;
+  return new Promise(resolve => {
+    const t = setTimeout(() => { captchaWaiters = captchaWaiters.filter(w => w !== done); resolve(""); }, 120000);
+    const done = token => { clearTimeout(t); resolve(token); };
+    captchaWaiters.push(done);
+  });
+}
+function resetCaptcha() {
+  captchaToken = "";
+  if (captchaWidget !== null && window.turnstile) window.turnstile.reset(captchaWidget);
+}
+$("authForm").addEventListener("focusin", () => { initCaptcha(); });
 
 $("toggleMode").addEventListener("click", () => setAuthMode(authMode === "signin" ? "signup" : "signin"));
 // เข้าสู่ระบบด้วย Google: ไปหน้า Google แล้วกลับมาที่แอป (Supabase จัดการให้)
@@ -279,19 +333,21 @@ $("authForm").addEventListener("submit", async ev => {
   btn.disabled = true; authMsg("กำลังดำเนินการ…");
   const redirectTo = location.origin + location.pathname;
   try {
+    const captcha = await getCaptchaToken();
+    if (captcha === "") { authMsg("ตรวจสอบว่าไม่ใช่บอตไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตหรือทำตามกล่องยืนยันด้านบน แล้วกดอีกครั้ง", true); return; }
     if (authMode === "signin") {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
+      const { error } = await sb.auth.signInWithPassword({ email, password, options: { captchaToken: captcha } });
       if (error) throw error;
       authMsg("");
     } else if (authMode === "signup") {
       // บันทึกหลักฐานการยอมรับข้อตกลง (เวอร์ชัน + เวลา) ไว้ในข้อมูลผู้ใช้
-      const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo,
+      const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo, captchaToken: captcha,
         data: { terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() } } });
       if (error) throw error;
       $("authPassword").value = ""; $("termsAgree").checked = false;
       if (!data.session) authMsg(`ส่งอีเมลยืนยันไปที่ ${email} แล้ว เปิดลิงก์ในอีเมลเพื่อเริ่มใช้งาน`);
     } else {
-      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo, captchaToken: captcha });
       if (error) throw error;
       authMsg(`ส่งลิงก์ตั้งรหัสผ่านใหม่ไปที่ ${email} แล้ว`);
     }
@@ -299,6 +355,7 @@ $("authForm").addEventListener("submit", async ev => {
     authMsg(thaiAuthError(err), true);
   } finally {
     btn.disabled = false;
+    resetCaptcha();
   }
 });
 
