@@ -77,11 +77,12 @@ h3 { text-wrap: balance; }
 .icon-btn.on { color: var(--accent); border-color: var(--accent); }
 
 .view { display: grid; gap: 18px; padding-block: 12px; }
-.today {
+/* บรรทัดวันที่ในหน้าแรก (จำกัดเฉพาะ p.today ไม่ให้ไปกระทบช่อง "วันนี้" ในปฏิทิน) */
+p.today {
   margin: 0; color: var(--muted); font-size: .8rem; letter-spacing: .06em;
   display: flex; align-items: center; gap: 10px;
 }
-.today::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+p.today::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
 /* ---------- พื้นผิว ---------- */
 .card, .entry, fieldset, .stats {
@@ -233,8 +234,8 @@ fieldset.days legend { background: var(--field); }
 .timer-mini:hover { background: var(--accent-deep); }
 
 /* ---------- ทบทวน ---------- */
-.review { display: grid; gap: 14px; }
-.review .goal { margin: 0; font-style: italic; color: var(--muted); }
+.review.card { display: grid; gap: 14px; }
+.review.card .goal { margin: 0; font-style: italic; color: var(--muted); }
 #rvAnswer { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 8px; }
 #rvAnswer ol, #rvAnswer p { margin: 0; }
 .grade { display: grid; gap: 8px; }
