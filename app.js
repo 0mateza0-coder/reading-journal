@@ -209,6 +209,8 @@ async function pull() {
 
 // ---------- ล็อกอิน ----------
 let authMode = "signin"; // signin | signup | forgot
+// เวอร์ชันข้อตกลงการใช้งาน (ตรงกับวันที่ใน privacy.html) เปลี่ยนเมื่อข้อตกลงเปลี่ยนในสาระสำคัญ แล้วผู้ใช้จะถูกขอให้ยอมรับใหม่
+const TERMS_VERSION = "2026-10-27";
 
 function setAuthMode(m) {
   authMode = m;
@@ -218,6 +220,8 @@ function setAuthMode(m) {
   $("pwLabel").hidden = m === "forgot";
   $("authPassword").autocomplete = m === "signup" ? "new-password" : "current-password";
   $("pwHint").hidden = m !== "signup";
+  $("termsWrap").hidden = m !== "signup";
+  $("termsAgree").checked = false; // ต้องติ๊กยอมรับใหม่ทุกครั้งที่เปิดหน้าสมัคร
   $("toggleMode").textContent = m === "signin" ? "ยังไม่มีบัญชี? สมัครสมาชิก" : "มีบัญชีแล้ว? เข้าสู่ระบบ";
   $("forgotBtn").hidden = m !== "signin";
   $("authIntro").textContent = m === "forgot"
@@ -255,6 +259,7 @@ $("authForm").addEventListener("submit", async ev => {
   // ต้องตรงกับที่ตั้งไว้ใน Supabase (Minimum length 8 + Letters and digits)
   if (authMode === "signup" && !strongPassword(password)) { authMsg("รหัสผ่านต้องยาวอย่างน้อย 8 ตัว และมีทั้งตัวอักษรภาษาอังกฤษและตัวเลข", true); return; }
   if (authMode === "signin" && !password) { authMsg("กรอกรหัสผ่าน", true); return; }
+  if (authMode === "signup" && !$("termsAgree").checked) { authMsg("โปรดอ่านและติ๊กยอมรับข้อตกลงการใช้งานก่อนสมัคร", true); $("termsAgree").focus(); return; }
   const btn = $("authSubmit");
   btn.disabled = true; authMsg("กำลังดำเนินการ…");
   const redirectTo = location.origin + location.pathname;
@@ -264,8 +269,11 @@ $("authForm").addEventListener("submit", async ev => {
       if (error) throw error;
       authMsg("");
     } else if (authMode === "signup") {
-      const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
+      // บันทึกหลักฐานการยอมรับข้อตกลง (เวอร์ชัน + เวลา) ไว้ในข้อมูลผู้ใช้
+      const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo,
+        data: { terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() } } });
       if (error) throw error;
+      $("authPassword").value = ""; $("termsAgree").checked = false;
       if (!data.session) authMsg(`ส่งอีเมลยืนยันไปที่ ${email} แล้ว เปิดลิงก์ในอีเมลเพื่อเริ่มใช้งาน`);
     } else {
       const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
@@ -312,7 +320,7 @@ function enterGuest() {
 function enterAccount(u) {
   mode = "account";
   serverSynced = false;
-  user = { id: u.id, email: u.email, createdAt: u.created_at || null };
+  user = { id: u.id, email: u.email, createdAt: u.created_at || null, termsVersion: u.user_metadata?.terms_version || null };
   lsSet(LAST_USER_KEY, user);
   lsDel(GUEST_CHOSEN_KEY);
   entries = load();
@@ -349,6 +357,24 @@ $("signOutBtn").addEventListener("click", async () => {
 
 // บันทึกที่เขียนไว้ตอนยังไม่ล็อกอิน
 function guestEntries() { return cleanEntries(lsGet(STORAGE_KEY, [])); }
+// บัญชีที่ยังไม่ได้ยอมรับข้อตกลงเวอร์ชันล่าสุด (สมัครก่อนมีช่องติ๊ก หรือข้อตกลงเปลี่ยน)
+function renderTermsCard() {
+  $("termsCard").hidden = !(mode === "account" && user && sb && user.termsVersion !== TERMS_VERSION);
+}
+$("termsAccept").addEventListener("click", async () => {
+  const btn = $("termsAccept");
+  btn.disabled = true; $("termsMsg").textContent = "";
+  try {
+    const { data, error } = await sb.auth.updateUser({ data: { terms_version: TERMS_VERSION, terms_accepted_at: new Date().toISOString() } });
+    if (error) throw error;
+    user.termsVersion = data?.user?.user_metadata?.terms_version || TERMS_VERSION;
+    renderTermsCard();
+    toast("ขอบคุณครับ บันทึกการยอมรับแล้ว");
+  } catch (err) {
+    $("termsMsg").textContent = "บันทึกไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่";
+  } finally { btn.disabled = false; }
+});
+
 function renderMigrate() {
   const list = mode === "account" ? guestEntries() : [];
   const skip = lsGet(MIGRATE_SKIP_KEY, false);
@@ -733,7 +759,7 @@ function renderAccount() {
 }
 
 function render() {
-  if (current === "home") { renderHome(); renderGoalToday(); renderMigrate(); renderBackupNudge(); }
+  if (current === "home") { renderHome(); renderGoalToday(); renderTermsCard(); renderMigrate(); renderBackupNudge(); }
   if (current === "library") renderLibrary();
   if (current === "calendar") renderCalendar();
   if (current === "write") renderBookList();

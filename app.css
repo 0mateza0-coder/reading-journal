@@ -548,6 +548,12 @@ body.onboard #profileBtn { display: none; }
 .av-sm { display: inline-grid; place-items: center; width: 1.45em; height: 1.45em; border-radius: 50%; background: var(--accent-soft); margin-right: 4px; font-size: .95em; vertical-align: -0.3em; }
 .lv-chip { font-size: .66rem; font-weight: 700; color: var(--gold); background: var(--gold-soft); border-radius: 999px; padding: 0 6px; vertical-align: .1em; }
 
+/* ยอมรับข้อตกลง */
+.terms-check { align-items: flex-start; font-size: .86rem; line-height: 1.6; background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.terms-check input { margin-top: .3em; flex-shrink: 0; width: 18px; height: 18px; }
+.terms-check a, .terms-card a { color: var(--accent); }
+.terms-card { border-color: var(--accent); background: linear-gradient(var(--paper), var(--accent-soft)); }
+
 /* ---------- แถบเมนูล่าง ---------- */
 .tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;

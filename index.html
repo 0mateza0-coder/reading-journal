@@ -37,6 +37,10 @@
           <label>อีเมล<input type="email" id="authEmail" autocomplete="email" inputmode="email" required></label>
           <label id="pwLabel">รหัสผ่าน <small id="pwHint">อย่างน้อย 8 ตัว มีทั้งตัวอักษรภาษาอังกฤษและตัวเลข</small>
             <input type="password" id="authPassword" autocomplete="current-password" required></label>
+          <label class="check terms-check" id="termsWrap" hidden>
+            <input type="checkbox" id="termsAgree">
+            <span>ฉันได้อ่านและยอมรับ <a href="privacy.html#terms" target="_blank" rel="noopener">ข้อตกลงการใช้งาน</a>, <a href="privacy.html#privacy" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a> และ <a href="privacy.html#rules" target="_blank" rel="noopener">กติกาเว็บบอร์ด</a></span>
+          </label>
           <button class="primary" type="submit" id="authSubmit">เข้าสู่ระบบ</button>
         </form>
         <p class="msg" id="authMsg" role="status"></p>
@@ -47,7 +51,7 @@
         <hr>
         <button type="button" id="guestBtn">ใช้งานโดยไม่ล็อกอิน</button>
         <p class="note">ถ้าไม่ล็อกอิน บันทึกจะเก็บในเครื่องนี้เท่านั้น ล็อกอินทีหลังแล้วย้ายเข้าบัญชีได้</p>
-        <p class="note legal">การสมัครและใช้งานถือว่ายอมรับ <a href="privacy.html">นโยบายความเป็นส่วนตัว</a> และ <a href="privacy.html#rules">กติกาเว็บบอร์ด</a></p>
+        <p class="note legal"><a href="privacy.html#terms" target="_blank" rel="noopener">ข้อตกลงการใช้งาน</a> · <a href="privacy.html#privacy" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a> · <a href="privacy.html#rules" target="_blank" rel="noopener">กติกาเว็บบอร์ด</a></p>
       </div>
 
       <form id="recoveryForm" class="card stack" hidden novalidate>
@@ -117,6 +121,12 @@
       <div class="home-actions">
         <button class="primary big" id="homeTimer">⏱ เริ่มจับเวลาอ่าน</button>
         <button class="big" data-go="write">+ เขียนบันทึก</button>
+      </div>
+      <div class="card stack terms-card" id="termsCard" hidden>
+        <h2>ข้อตกลงการใช้งานมีการปรับปรุง</h2>
+        <p class="note">โปรดอ่าน <a href="privacy.html#terms" target="_blank" rel="noopener">ข้อตกลงการใช้งาน</a>, <a href="privacy.html#privacy" target="_blank" rel="noopener">นโยบายความเป็นส่วนตัว</a> และ <a href="privacy.html#rules" target="_blank" rel="noopener">กติกาเว็บบอร์ด</a> แล้วกดยอมรับเพื่อใช้งานต่อ</p>
+        <div class="actions"><button class="primary" id="termsAccept">อ่านแล้ว และยอมรับ</button></div>
+        <p class="msg error" id="termsMsg" role="status"></p>
       </div>
       <div class="card stack migrate" id="migrateCard" hidden>
         <h2>ย้ายบันทึกเข้าบัญชี</h2>
@@ -548,7 +558,7 @@
         <div class="actions"><button class="danger" id="delBtn" disabled>ลบข้อมูลทั้งหมด</button></div>
         <p class="msg error" id="delMsg" role="status"></p>
       </div>
-      <p class="note legal"><a href="privacy.html">นโยบายความเป็นส่วนตัว</a> · <a href="privacy.html#rules">กติกาเว็บบอร์ด</a></p>
+      <p class="note legal"><a href="privacy.html#terms">ข้อตกลงการใช้งาน</a> · <a href="privacy.html#privacy">นโยบายความเป็นส่วนตัว</a> · <a href="privacy.html#rules">กติกาเว็บบอร์ด</a></p>
       <div class="card stack" id="installCard">
         <h2>ติดตั้งลงหน้าจอโฮม</h2>
         <p class="note" id="installHint">iPhone / iPad: เปิดใน Safari แล้วกดปุ่มแชร์ → “เพิ่มไปยังหน้าจอโฮม”<br>Android / คอมพิวเตอร์: กดปุ่มด้านล่าง หรือเลือก “ติดตั้งแอป” จากเมนูของเบราว์เซอร์</p>
