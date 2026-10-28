@@ -4,7 +4,8 @@ alter function public.check_review_images() set search_path = public;
 alter function public.stamp_times() set search_path = public;
 -- 2) ฟังก์ชันของ trigger: ไม่ต้องให้ใครเรียกตรง ๆ ผ่าน API (trigger ยังทำงานตามปกติ)
 revoke execute on function public.limit_entries_per_user(), public.enforce_post_limits(),
-  public.limit_reports(), public.check_review_images(), public.stamp_times() from public, anon, authenticated;
+  public.limit_reports(), public.check_review_images(), public.stamp_times(),
+  public.rls_auto_enable() from public, anon, authenticated;  -- rls_auto_enable: Supabase สร้างเองเมื่อเปิด auto-RLS
 -- 3) is_admin: ผู้ไม่ล็อกอินไม่ต้องใช้
 revoke execute on function public.is_admin() from public, anon;
 grant execute on function public.is_admin() to authenticated;
