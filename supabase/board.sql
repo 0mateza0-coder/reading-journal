@@ -110,7 +110,7 @@ alter table public.reviews add constraint reviews_images_max check (coalesce(arr
 
 -- รูปในรีวิวต้องอยู่ในโฟลเดอร์ของผู้เขียนรีวิวเท่านั้น
 create or replace function public.check_review_images() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 begin
   if exists (select 1 from unnest(new.images) p where p not like new.user_id::text || '/%' or p like '%..%') then
     raise exception 'invalid image path';
@@ -156,7 +156,7 @@ create trigger comments_rate_limit before insert on public.comments for each row
 -- ---------- ความปลอดภัยเพิ่มเติม ----------
 -- เวลาโพสต์ให้ฐานข้อมูลกำหนดเอง (กันการย้อนเวลาเพื่อหลบการจำกัดโพสต์ต่อวัน)
 create or replace function public.stamp_times() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 begin
   if tg_op = 'INSERT' then
     new.created_at := now();
@@ -202,7 +202,10 @@ grant insert, update, delete on public.reviews to authenticated;
 grant insert, delete on public.comments to authenticated;
 grant select, insert, delete on public.reports to authenticated;
 grant select on public.admins to authenticated;
-grant execute on function public.is_admin() to anon, authenticated;
+-- ฟังก์ชัน: is_admin ใช้เฉพาะผู้ล็อกอิน ฟังก์ชันของ trigger ไม่ต้องให้ใครเรียกผ่าน API (trigger ยังทำงานตามปกติ)
+revoke execute on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
+revoke execute on function public.enforce_post_limits(), public.limit_reports(), public.check_review_images(), public.stamp_times() from public, anon, authenticated;
 
 -- ---------- โปรไฟล์: รูปโปรไฟล์ (อีโมจิ) และระดับนักอ่าน ----------
 -- ระดับคำนวณในแอปจากสถิติการอ่าน แล้วบันทึกไว้เพื่อแสดงข้างชื่อในเว็บบอร์ด (เป็นของตกแต่ง ไม่ใช่สิทธิ์พิเศษ)

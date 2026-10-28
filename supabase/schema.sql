@@ -76,3 +76,4 @@ grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on public.entries to authenticated;
 grant select, insert, update on public.settings to authenticated;
 grant execute on function public.delete_my_account() to authenticated;
+revoke execute on function public.limit_entries_per_user() from public, anon, authenticated;
