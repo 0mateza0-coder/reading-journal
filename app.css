@@ -527,7 +527,16 @@ body.onboard #profileBtn { display: none; }
 .pf-avatars { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
 .pf-avatars button { padding: 0; aspect-ratio: 1; font-size: 1.35rem; border-radius: 10px; background: var(--field); }
 .pf-avatars button.on { border: 2px solid var(--accent); background: var(--accent-soft); }
-@media (max-width: 380px) { .pf-avatars { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+/* รูปจาก Google: ตัดเป็นวงกลมเต็มกรอบ */
+.av-img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+/* มีตัวเลือกรูปจาก Google: ช่องกว้าง 2 ช่อง แถวจะเต็มพอดี (2+16 = 9×2 หรือ 6×3) */
+.pf-avatars:has(.g-pick) { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+.pf-avatars .g-pick { grid-column: span 2; aspect-ratio: auto; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 6px; font-size: .78rem; font-weight: 600; color: var(--muted); }
+.pf-avatars .g-pick .av-img { width: auto; height: 100%; max-height: 34px; aspect-ratio: 1; flex: none; }
+.pf-avatars .g-pick.on { color: var(--accent); }
+.avatar-btn .face:has(.av-img) { display: block; width: 100%; height: 100%; }
+.av-sm:has(.av-img), .pf-avatar:has(.av-img) { overflow: hidden; }
+@media (max-width: 380px) { .pf-avatars, .pf-avatars:has(.g-pick) { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 .level-card { background: linear-gradient(var(--paper), color-mix(in srgb, var(--gold-soft) 50%, var(--paper))); }
 .lv-head { display: flex; gap: 12px; align-items: center; }
 .lv-head > div { flex: 1; min-width: 0; }

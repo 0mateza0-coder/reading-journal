@@ -389,10 +389,14 @@ function enterGuest() {
   returnAfterLogin = null;
 }
 
+// รูปโปรไฟล์จากบัญชี Google (ยอมรับเฉพาะรูปบนเซิร์ฟเวอร์ของ Google)
+const GOOGLE_PHOTO_RE = /^https:\/\/lh3\.googleusercontent\.com\/[A-Za-z0-9_\-./=]+$/;
+const cleanGooglePhoto = url => typeof url === "string" && url.length <= 500 && GOOGLE_PHOTO_RE.test(url) ? url : "";
 function enterAccount(u) {
   mode = "account";
   serverSynced = false;
-  user = { id: u.id, email: u.email, createdAt: u.created_at || null, termsVersion: u.user_metadata?.terms_version || null };
+  user = { id: u.id, email: u.email, createdAt: u.created_at || null, termsVersion: u.user_metadata?.terms_version || null,
+    googlePhoto: cleanGooglePhoto(u.user_metadata?.avatar_url || u.user_metadata?.picture) };
   lsSet(LAST_USER_KEY, user);
   lsDel(GUEST_CHOSEN_KEY);
   entries = load();

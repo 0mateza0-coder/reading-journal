@@ -5,17 +5,17 @@
 // CATEGORIES และ catLabel อยู่ใน app.js (ใช้ร่วมกับชั้นหนังสือ)
 const BOARD_PAGE = 20;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// คอลัมน์โปรไฟล์ที่ดึงมาแสดง ถ้ายังไม่ได้รัน SQL ส่วนรูป/ระดับ (ไม่มีคอลัมน์) จะถอยไปใช้แค่ชื่อ
-const PROFILE_COLS = ["display_name,avatar,level", "display_name"];
+// คอลัมน์โปรไฟล์ที่ดึงมาแสดง ถ้ายังไม่ได้รัน SQL ส่วนรูป/ระดับ (ไม่มีคอลัมน์) จะถอยไปใช้คอลัมน์ที่น้อยลง
+const PROFILE_COLS = ["display_name,avatar,avatar_url,level", "display_name,avatar,level", "display_name"];
 let profileColsIdx = 0;
 const profSel = () => `profiles(${PROFILE_COLS[profileColsIdx]})`;
 const listFields = () => `id,title,book_title,book_author,category,rating,body,images,created_at,user_id,${profSel()},comments(count)`;
-// เรียกคำสั่งที่ใช้คอลัมน์โปรไฟล์ ถ้าเจอ "ไม่มีคอลัมน์" ให้ลองใหม่แบบดึงแค่ชื่อ
+// เรียกคำสั่งที่ใช้คอลัมน์โปรไฟล์ ถ้าเจอ "ไม่มีคอลัมน์" ให้ลองใหม่ด้วยคอลัมน์ที่น้อยลง
 async function withProfileCols(run) {
-  const res = await run();
-  if (res.error && profileColsIdx === 0 && (res.error.code === "42703" || res.error.code === "PGRST200" || /column/i.test(res.error.message || ""))) {
-    profileColsIdx = 1;
-    return run();
+  let res = await run();
+  while (res.error && profileColsIdx < PROFILE_COLS.length - 1 && (res.error.code === "42703" || res.error.code === "PGRST200" || /column/i.test(res.error.message || ""))) {
+    profileColsIdx++;
+    res = await run();
   }
   return res;
 }
@@ -56,12 +56,16 @@ const armed = {};     // ปุ่มที่ต้องแตะสองค�
 const signedIn = () => !!sb && mode === "account" && !!user;
 const nameOf = r => r?.profiles?.display_name || "ผู้ใช้";
 // ชื่อผู้เขียน + รูปโปรไฟล์ + ระดับนักอ่าน (ข้อความทั้งหมดผ่าน esc แล้ว)
+// รูปจาก Google แสดงเฉพาะเมื่อเจ้าของเลือก "ใช้รูปจาก Google" ในหน้าโปรไฟล์
 function nameTag(r, bold = false) {
   const p = r?.profiles || {};
+  const photo = p.avatar === "google" ? cleanGooglePhoto(p.avatar_url) : "";
   const av = typeof avatarSafe === "function" ? avatarSafe(p.avatar) : "";
   const lv = Number.isInteger(p.level) && p.level >= 1 && p.level <= 7 ? p.level : null;
   const name = bold ? `<b>${esc(nameOf(r))}</b>` : esc(nameOf(r));
-  return `${av ? `<span class="av-sm" aria-hidden="true">${esc(av)}</span>` : ""}${name}${lv ? ` <span class="lv-chip" title="ระดับนักอ่าน">Lv.${lv}</span>` : ""}`;
+  const face = photo ? `<span class="av-sm" aria-hidden="true"><img class="av-img" src="${esc(photo)}" alt="" referrerpolicy="no-referrer" loading="lazy" data-fallback="${esc(nameOf(r).trim()[0] || "")}"></span>`
+    : av ? `<span class="av-sm" aria-hidden="true">${esc(av)}</span>` : "";
+  return `${face}${name}${lv ? ` <span class="lv-chip" title="ระดับนักอ่าน">Lv.${lv}</span>` : ""}`;
 }
 const starText = n => "★".repeat(n) + "☆".repeat(5 - n);
 function relTime(iso) {
@@ -101,7 +105,8 @@ async function loadProfile() {
     sb.from("admins").select("user_id").eq("user_id", uid).maybeSingle()
   ]);
   if (user?.id !== uid) return null;
-  myProfile = { uid, name: p.data?.display_name || "", avatar: p.data?.avatar || "", level: p.data?.level || 1, admin: !!a.data, exists: !!p.data };
+  myProfile = { uid, name: p.data?.display_name || "", avatar: p.data?.avatar || "", avatarUrl: p.data?.avatar_url || "",
+    level: p.data?.level || 1, admin: !!a.data, exists: !!p.data };
   return myProfile;
 }
 // บันทึกโปรไฟล์ (ชื่อ / รูป / ระดับ) ส่งเฉพาะช่องที่ระบุ
@@ -114,14 +119,17 @@ async function saveMyProfile(fields) {
   } else if (!myProfile?.name) {
     return; // ยังไม่มีชื่อ = ยังไม่มีแถวโปรไฟล์ ให้ตั้งชื่อก่อน
   } else row.display_name = myProfile.name;
-  if (profileColsIdx === 0) {
+  if (profileColsIdx <= 1) {
     if ("avatar" in fields) row.avatar = fields.avatar || "";
     if ("level" in fields) row.level = fields.level;
   }
+  // รูปจาก Google: เก็บที่อยู่รูปไว้แสดงในเว็บบอร์ด เลือกรูปอื่นแล้วจะลบที่อยู่รูปออก
+  if (profileColsIdx === 0 && "avatar" in fields) row.avatar_url = fields.avatar === "google" ? cleanGooglePhoto(fields.avatarUrl) : "";
   const { error } = await sb.from("profiles").upsert(row, { onConflict: "id" });
   if (error) throw error;
   myProfile = { ...(myProfile || { uid: user.id, admin: false }), uid: user.id, name: row.display_name,
-    ...("avatar" in row ? { avatar: row.avatar } : {}), ...("level" in row ? { level: row.level } : {}), exists: true };
+    ...("avatar" in row ? { avatar: row.avatar } : {}), ...("avatar_url" in row ? { avatarUrl: row.avatar_url } : {}),
+    ...("level" in row ? { level: row.level } : {}), exists: true };
 }
 const saveProfileName = name => saveMyProfile({ name });
 

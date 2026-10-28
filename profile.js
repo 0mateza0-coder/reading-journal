@@ -17,6 +17,10 @@ const READER_LEVELS = [
 const XP_RULES = { minute: 1, book: 30, summary: 5, review: 3 };
 const AVATARS = ["📚", "🦉", "🐛", "🦊", "🐱", "🐼", "🐻", "🐰", "🌱", "🌙", "⭐", "☕", "🎧", "🌸", "🍵", "✏️"];
 const avatarSafe = v => AVATARS.includes(v) ? v : "";
+// ค่าที่เลือกได้ในหน้าโปรไฟล์: อีโมจิ หรือ "google" (เมื่อบัญชีมีรูปจาก Google)
+const pickSafe = v => v === "google" && user?.googlePhoto ? "google" : avatarSafe(v);
+const photoImg = (url, fallback) =>
+  `<img class="av-img" src="${esc(url)}" alt="" referrerpolicy="no-referrer" data-fallback="${esc(fallback || "")}">`;
 const LEVEL_SEEN_KEY = () => mode === "account" && user ? `reading-journal-level-seen:${user.id}` : "reading-journal-level-seen";
 let pfAvatarPick = "";
 let pfLevelSyncing = false;
@@ -40,12 +44,23 @@ function levelOfXp(xp) {
 }
 
 // ---------- ปุ่มโปรไฟล์มุมขวาบน ----------
+// รูปของตัวเอง: อีโมจิที่เลือก > รูปจาก Google (ถ้าเลือกไว้ หรือยังไม่ได้เลือกอะไร) > ตัวอักษรแรกของชื่อ
 function faceFor(p) {
+  const base = (p?.name || user?.email || "").trim();
+  const initial = base ? base[0].toUpperCase() : "";
   const av = avatarSafe(p?.avatar);
   if (av) return esc(av);
-  const base = (p?.name || user?.email || "").trim();
-  return base ? esc(base[0].toUpperCase()) : "";
+  if (user?.googlePhoto && (p?.avatar === "google" || !p?.avatar)) return photoImg(user.googlePhoto, initial);
+  return esc(initial);
 }
+// รูปโหลดไม่ได้ (เช่น ออฟไลน์) ให้แสดงตัวอักษรแรกแทน
+document.addEventListener("error", ev => {
+  const img = ev.target;
+  if (!(img instanceof HTMLImageElement) || !img.classList.contains("av-img")) return;
+  const s = document.createElement("span");
+  s.textContent = img.dataset.fallback || "🙂";
+  img.replaceWith(s);
+}, true);
 function renderProfileButton() {
   const btn = $("profileBtn"), face = $("profileBtnFace");
   if (signedIn()) {
@@ -84,9 +99,11 @@ function renderProfilePage() {
   $("pfSignOut").hidden = !signedIn();
   if (signedIn()) {
     if (document.activeElement !== $("pfNameInput")) $("pfNameInput").value = me?.name || "";
-    if (!pfAvatarPick) pfAvatarPick = avatarSafe(me?.avatar);
-    $("pfAvatars").innerHTML = AVATARS.map(a =>
+    if (!pfAvatarPick) pfAvatarPick = pickSafe(me?.avatar);
+    const g = user.googlePhoto ? `<button type="button" role="radio" aria-checked="${pfAvatarPick === "google"}" class="g-pick ${pfAvatarPick === "google" ? "on" : ""}" data-avatar="google" aria-label="ใช้รูปจาก Google">${photoImg(user.googlePhoto, "G")}<span>Google</span></button>` : "";
+    $("pfAvatars").innerHTML = g + AVATARS.map(a =>
       `<button type="button" role="radio" aria-checked="${a === pfAvatarPick}" class="${a === pfAvatarPick ? "on" : ""}" data-avatar="${a}" aria-label="รูป ${a}">${a}</button>`).join("");
+    $("pfGoogleNote").hidden = !user.googlePhoto;
   }
 
   // ระดับนักอ่าน
@@ -127,12 +144,12 @@ function renderProfilePage() {
 $("pfAvatars").addEventListener("click", ev => {
   const b = ev.target.closest("[data-avatar]");
   if (!b) return;
-  pfAvatarPick = avatarSafe(b.dataset.avatar);
+  pfAvatarPick = pickSafe(b.dataset.avatar);
   $("pfAvatars").querySelectorAll("[data-avatar]").forEach(x => {
     const on = x.dataset.avatar === pfAvatarPick;
     x.classList.toggle("on", on); x.setAttribute("aria-checked", String(on));
   });
-  $("pfAvatar").textContent = pfAvatarPick;
+  $("pfAvatar").innerHTML = faceFor({ ...myProfile, avatar: pfAvatarPick });
 });
 $("pfForm").addEventListener("submit", async ev => {
   ev.preventDefault();
@@ -140,7 +157,7 @@ $("pfForm").addEventListener("submit", async ev => {
   if (!name) { $("pfMsg").textContent = "ตั้งชื่อที่แสดงก่อน (1–40 ตัวอักษร)"; return; }
   $("pfSave").disabled = true; $("pfMsg").textContent = "";
   try {
-    await saveMyProfile({ name, avatar: pfAvatarPick, level: levelOfXp(readerXp().total).level });
+    await saveMyProfile({ name, avatar: pfAvatarPick, avatarUrl: user.googlePhoto, level: levelOfXp(readerXp().total).level });
     toast("บันทึกโปรไฟล์แล้ว");
     renderProfileButton(); renderProfilePage();
   } catch (err) {
@@ -176,7 +193,15 @@ function onProfileRender(view) {
   // โหลดโปรไฟล์จากเว็บบอร์ด (ครั้งแรก) แล้ววาดปุ่ม/หน้าใหม่
   if (signedIn() && myProfile?.uid !== user.id && !pfLoading) {
     pfLoading = true;
-    loadProfile().then(() => { renderProfileButton(); if (current === "profile") renderProfilePage(); checkLevel(); })
+    loadProfile().then(() => {
+      renderProfileButton(); if (current === "profile") renderProfilePage(); checkLevel();
+      // เปลี่ยนรูปใน Google แล้ว ให้เว็บบอร์ดใช้รูปใหม่ด้วย
+      if (myProfile?.avatar === "google" && user?.googlePhoto && myProfile.avatarUrl !== user.googlePhoto && profileColsIdx === 0)
+        saveMyProfile({ avatar: "google", avatarUrl: user.googlePhoto }).catch(() => {});
+    })
       .catch(() => {}).finally(() => { pfLoading = false; });
   }
 }
+
+// เข้าสู่ระบบเสร็จก่อนไฟล์นี้โหลด (เช่น กู้ session จากเครื่องได้ทันที) ให้วาดปุ่มโปรไฟล์ตอนนี้เลย
+if (typeof current === "string" && current) onProfileRender(current);

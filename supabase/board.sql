@@ -213,5 +213,10 @@ alter table public.profiles add column if not exists avatar text not null defaul
 alter table public.profiles add column if not exists level smallint not null default 1;
 alter table public.profiles drop constraint if exists profiles_avatar_len;
 alter table public.profiles add constraint profiles_avatar_len check (char_length(avatar) <= 16 and avatar !~ '[<>"''&[:cntrl:]]');
+-- รูปจากบัญชี Google (ใช้เมื่อ avatar = 'google') รับเฉพาะรูปบนเซิร์ฟเวอร์ของ Google
+alter table public.profiles add column if not exists avatar_url text not null default '';
+alter table public.profiles drop constraint if exists profiles_avatar_url_google;
+alter table public.profiles add constraint profiles_avatar_url_google check (
+  avatar_url = '' or (char_length(avatar_url) <= 500 and avatar_url ~ '^https://lh3\.googleusercontent\.com/[A-Za-z0-9_./=-]+$'));
 alter table public.profiles drop constraint if exists profiles_level_range;
 alter table public.profiles add constraint profiles_level_range check (level between 1 and 7);
